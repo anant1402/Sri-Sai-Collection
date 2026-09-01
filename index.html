@@ -3,50 +3,60 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sri Sai Collection - Smart Stock & AI Analytics</title>
+  <title>Sri Sai Collection - Multi-User Stock & Access Control</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Firebase Compat SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
   <!-- JsBarcode -->
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
   <style>
     @media print {
-      @page {
-        size: A4 portrait;
-        margin: 4mm;
-      }
+      @page { size: A4 portrait; margin: 4mm; }
       body * { visibility: hidden; }
       #printableA4Sheet, #printableA4Sheet * { visibility: visible; }
       #printableA4Sheet {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        height: 100%;
-        display: grid !important;
-        grid-template-columns: repeat(4, 1fr) !important;
-        grid-template-rows: repeat(9, 1fr) !important;
-        gap: 0px !important;
-        padding: 0 !important;
-        box-sizing: border-box;
+        position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+        display: grid !important; grid-template-columns: repeat(4, 1fr) !important;
+        grid-template-rows: repeat(9, 1fr) !important; gap: 0px !important;
       }
       .sticker-box {
-        border: 1px solid #000 !important;
-        box-sizing: border-box;
-        padding: 2px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: space-between;
-        background: #fff;
-        overflow: hidden;
+        border: 1px solid #000 !important; box-sizing: border-box; padding: 2px;
+        display: flex; flex-direction: column; align-items: center; justify-content: space-between; background: #fff;
       }
     }
   </style>
 </head>
 <body class="bg-slate-100 font-sans pb-10">
 
+  <!-- LOGIN / REGISTER OVERLAY -->
+  <div id="authScreen" class="fixed inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-3xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
+      <div class="text-center">
+        <h2 class="text-xl font-black text-blue-900">Sri Sai Collection</h2>
+        <p class="text-xs text-gray-500 mt-1">Staff & Owner Login</p>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-[11px] font-bold text-gray-600 mb-1">Email ID</label>
+          <input type="email" id="authEmail" class="w-full border rounded-xl p-2.5 text-xs outline-none focus:ring-2 focus:ring-blue-500" placeholder="user@srisaicollection.com">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-gray-600 mb-1">Password</label>
+          <input type="password" id="authPassword" class="w-full border rounded-xl p-2.5 text-xs outline-none focus:ring-2 focus:ring-blue-500" placeholder="••••••••">
+        </div>
+      </div>
+
+      <div class="space-y-2 pt-2">
+        <button onclick="handleLogin()" class="w-full bg-blue-700 text-white py-3 rounded-xl text-xs font-bold shadow hover:bg-blue-800">Login</button>
+        <button onclick="handleSignup()" class="w-full bg-slate-100 text-slate-700 py-2.5 rounded-xl text-xs font-semibold hover:bg-slate-200">New Staff Register</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN APP CONTAINER -->
   <div class="max-w-md mx-auto p-3 space-y-3">
 
     <!-- Header Block -->
@@ -54,98 +64,73 @@
       <div class="flex items-center gap-3">
         <div class="relative cursor-pointer" onclick="document.getElementById('logoInput').click()">
           <img id="headerLogo" class="w-12 h-12 rounded-full object-cover border-2 border-white bg-white hidden" alt="Logo">
-          <div id="logoPlaceholder" class="w-12 h-12 rounded-full bg-blue-900 border-2 border-blue-400 flex items-center justify-center font-bold text-white text-xs shadow">
-            SSC
-          </div>
+          <div id="logoPlaceholder" class="w-12 h-12 rounded-full bg-blue-900 border-2 border-blue-400 flex items-center justify-center font-bold text-white text-xs shadow">SSC</div>
           <input type="file" id="logoInput" accept="image/*" class="hidden" onchange="uploadLogo(event)">
         </div>
 
         <div>
           <h1 class="text-lg font-bold tracking-wide">Sri Sai Collection</h1>
-          <p class="text-[11px] text-blue-200" id="syncStatus">Offline / Local Mode</p>
-          <div class="flex gap-2 mt-0.5">
-            <button onclick="document.getElementById('logoInput').click()" class="text-[10px] underline text-blue-200 hover:text-white">Logo</button>
-            <span class="text-[10px] text-blue-300">•</span>
-            <button onclick="protectedAction(changeOwnerPinPrompt)" class="text-[10px] underline text-amber-300 hover:text-white">🔑 Change PIN</button>
-          </div>
+          <p class="text-[11px] text-blue-200" id="userBadge">Logged in as: ...</p>
         </div>
       </div>
 
-      <button onclick="protectedAction(openConfigModal)" class="bg-blue-900 border border-blue-400 text-xs px-2.5 py-1.5 rounded-xl font-bold shadow hover:bg-blue-950 flex items-center gap-1">
-        🔒 ⚙️ Firebase
+      <button onclick="handleLogout()" class="bg-red-600 hover:bg-red-700 text-white text-xs px-3 py-1.5 rounded-xl font-bold shadow">
+        Logout
       </button>
     </div>
 
     <!-- Navigation Tabs -->
-    <div class="grid grid-cols-4 gap-1.5 bg-gray-200 p-1 rounded-xl">
-      <button onclick="showTab('entry')" id="tab-entry" class="bg-blue-600 text-white font-semibold py-2 rounded-lg text-xs shadow text-center">Entry & Print</button>
-      <button onclick="showTab('billing')" id="tab-billing" class="text-gray-700 font-semibold py-2 rounded-lg text-xs text-center">Billing</button>
-      <button onclick="showTab('stock')" id="tab-stock" class="text-gray-700 font-semibold py-2 rounded-lg text-xs text-center">Stock List</button>
-      <button onclick="showTab('ai')" id="tab-ai" class="text-gray-700 font-semibold py-2 rounded-lg text-xs text-center">🤖 AI Sales</button>
+    <div class="grid grid-cols-4 gap-1 bg-gray-200 p-1 rounded-xl text-[11px]" id="navTabs">
+      <button onclick="showTab('entry')" id="tab-entry" class="bg-blue-600 text-white font-semibold py-2 rounded-lg text-center">Entry</button>
+      <button onclick="showTab('billing')" id="tab-billing" class="text-gray-700 font-semibold py-2 rounded-lg text-center">Billing</button>
+      <button onclick="showTab('stock')" id="tab-stock" class="text-gray-700 font-semibold py-2 rounded-lg text-center">Stock</button>
+      <button onclick="showTab('ai')" id="tab-ai" class="text-gray-700 font-semibold py-2 rounded-lg text-center">🤖 AI Sales</button>
+      <button onclick="showTab('users')" id="tab-users" class="text-amber-800 bg-amber-200 font-bold py-2 rounded-lg text-center col-span-4 mt-1 hidden">👥 Manage Access (Owner Only)</button>
     </div>
 
     <!-- TAB 1: Entry & Print -->
     <div id="sec-entry" class="tab-content bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
       <div class="flex justify-between items-center">
         <h2 class="font-bold text-gray-800 text-sm">Item Entry & Printing</h2>
-        <button onclick="protectedAction(clearQueue)" id="queueBtn" class="bg-blue-100 text-blue-700 text-xs px-3 py-1 rounded-full font-medium">
-          Clear Queue (0)
-        </button>
+        <button onclick="clearQueue()" id="queueBtn" class="bg-blue-100 text-blue-700 text-xs px-3 py-1 rounded-full font-medium">Clear Queue (0)</button>
       </div>
-
-      <button onclick="alert('Camera Barcode Scanner is Ready')" class="w-full bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-xl font-bold text-xs shadow">
-        Scan Existing Sticker (Auto-Fill)
-      </button>
 
       <div>
         <label class="block text-xs font-semibold text-gray-600 mb-1">Barcode / Tag No.</label>
         <div class="flex gap-2">
-          <input type="text" id="itemBarcode" class="flex-1 border border-gray-300 rounded-xl p-2 text-xs font-mono outline-none focus:ring-2 focus:ring-blue-500">
-          <button onclick="generateAutoBarcode()" class="bg-blue-600 text-white px-3 py-2 rounded-xl text-xs font-bold shadow hover:bg-blue-700 flex items-center gap-1">
-            ⚡ Auto Barcode
-          </button>
+          <input type="text" id="itemBarcode" class="flex-1 border border-gray-300 rounded-xl p-2 text-xs font-mono outline-none">
+          <button onclick="generateAutoBarcode()" class="bg-blue-600 text-white px-3 py-2 rounded-xl text-xs font-bold">⚡ Auto</button>
         </div>
       </div>
 
       <div>
         <label class="block text-xs font-semibold text-gray-600 mb-1">Mill / Brand Name</label>
-        <input type="text" id="itemBrand" class="w-full border border-gray-300 rounded-xl p-2 text-xs outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g. Raymond, Arvind, Siyaram, Local">
-        <div class="flex gap-1.5 mt-2">
-          <button onclick="setBrand('Raymond')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] px-2.5 py-1 rounded-full border">Raymond</button>
-          <button onclick="setBrand('Arvind')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] px-2.5 py-1 rounded-full border">Arvind</button>
-          <button onclick="setBrand('Siyaram')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] px-2.5 py-1 rounded-full border">Siyaram</button>
-          <button onclick="setBrand('Local')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] px-2.5 py-1 rounded-full border">Local</button>
-        </div>
+        <input type="text" id="itemBrand" class="w-full border border-gray-300 rounded-xl p-2 text-xs outline-none" placeholder="e.g. Raymond, Arvind">
       </div>
 
       <div>
         <label class="block text-xs font-semibold text-gray-600 mb-1">Item Name / Category</label>
-        <input type="text" id="itemName" class="w-full border border-gray-300 rounded-xl p-2 text-xs outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g. Shirting, Suiting, Saree, Kurti">
+        <input type="text" id="itemName" class="w-full border border-gray-300 rounded-xl p-2 text-xs outline-none" placeholder="e.g. Shirting, Suiting">
       </div>
 
       <div class="grid grid-cols-2 gap-2">
         <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1">Shelf / Rack No.</label>
-          <input type="text" id="itemShelf" class="w-full border border-gray-300 rounded-xl p-2 text-xs outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g. Shelf A-1">
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Shelf No.</label>
+          <input type="text" id="itemShelf" class="w-full border border-gray-300 rounded-xl p-2 text-xs outline-none" placeholder="A-1">
         </div>
         <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1">Selling Price / MRP (₹)</label>
-          <input type="number" id="itemPrice" class="w-full border border-gray-300 rounded-xl p-2 text-xs outline-none focus:ring-2 focus:ring-blue-500" value="0">
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Price (₹)</label>
+          <input type="number" id="itemPrice" class="w-full border border-gray-300 rounded-xl p-2 text-xs outline-none" value="0">
         </div>
       </div>
 
       <div>
-        <label class="block text-xs font-semibold text-gray-600 mb-1">Sticker Qty (Number of Stickers needed)</label>
-        <input type="number" id="itemStickerQty" class="w-full border border-gray-300 rounded-xl p-2 text-xs outline-none focus:ring-2 focus:ring-blue-500" value="1">
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Sticker Qty</label>
+        <input type="number" id="itemStickerQty" class="w-full border border-gray-300 rounded-xl p-2 text-xs outline-none" value="1">
       </div>
 
-      <button onclick="addStockAndFillGrid()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold text-xs shadow flex items-center justify-center gap-1">
-        <span>➕</span> Add Stock & Fill Sticker Grid
-      </button>
-
-      <button onclick="printA4StickerSheet()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold text-xs shadow">
-        🖨️ Print 36-Sticker A4 Sheet
-      </button>
+      <button onclick="addStockAndFillGrid()" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold text-xs shadow">➕ Add Stock & Queue</button>
+      <button onclick="printA4StickerSheet()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-xs shadow">🖨️ Print 36-Sticker Sheet</button>
     </div>
 
     <!-- TAB 2: Billing -->
@@ -158,8 +143,8 @@
       </div>
 
       <div class="border-t pt-2">
-        <label class="text-[11px] font-bold text-gray-500">Customer Mobile (For WhatsApp Bill):</label>
-        <input type="tel" id="custMobile" placeholder="e.g. 9876543210" class="border p-2 rounded-xl text-xs w-full mt-1">
+        <label class="text-[11px] font-bold text-gray-500">Customer Mobile (WhatsApp):</label>
+        <input type="tel" id="custMobile" placeholder="9876543210" class="border p-2 rounded-xl text-xs w-full mt-1">
       </div>
 
       <div class="border-t pt-2 space-y-2">
@@ -179,248 +164,188 @@
     <!-- TAB 3: Stock List -->
     <div id="sec-stock" class="tab-content bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3 hidden">
       <div class="flex justify-between items-center">
-        <h2 class="font-bold text-gray-800 text-sm">Live Stock Inventory</h2>
-        <button onclick="protectedAction(clearAllStock)" class="bg-red-100 text-red-600 text-[11px] px-2.5 py-1 rounded-full font-semibold">Clear Stock</button>
+        <h2 class="font-bold text-gray-800 text-sm">Live Inventory</h2>
       </div>
       <div id="stockListDisplay" class="space-y-2 max-h-80 overflow-y-auto"></div>
     </div>
 
-    <!-- TAB 4: AI Sales Agent & Insights -->
+    <!-- TAB 4: AI Sales Agent -->
     <div id="sec-ai" class="tab-content bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4 hidden">
-      <div class="flex justify-between items-center border-b pb-2">
-        <h2 class="font-bold text-gray-800 text-sm">📊 Sales Insights & AI Analysis</h2>
-        <button onclick="protectedAction(clearSalesHistory)" class="text-[10px] bg-red-50 text-red-600 px-2 py-1 rounded border">Clear History</button>
-      </div>
-
-      <!-- Live Sales Overview Cards -->
+      <h2 class="font-bold text-gray-800 text-sm">📊 Sales Insights</h2>
       <div class="grid grid-cols-2 gap-2">
         <div class="bg-blue-50 border border-blue-200 p-3 rounded-xl">
-          <p class="text-[11px] font-bold text-blue-700 uppercase">Aaj Ki Sale (Today)</p>
+          <p class="text-[11px] font-bold text-blue-700 uppercase">Aaj Ki Sale</p>
           <p id="todaySalesAmount" class="text-lg font-black text-blue-900 mt-1">₹0</p>
-          <p id="todaySalesCount" class="text-[10px] text-blue-600">0 items sold</p>
         </div>
         <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-xl">
           <p class="text-[11px] font-bold text-emerald-700 uppercase">Iss Month Ki Sale</p>
           <p id="monthSalesAmount" class="text-lg font-black text-emerald-900 mt-1">₹0</p>
-          <p id="monthSalesCount" class="text-[10px] text-emerald-600">0 items sold</p>
         </div>
       </div>
+    </div>
 
-      <button onclick="generateAISaleReport()" class="w-full bg-gradient-to-r from-blue-700 to-indigo-800 hover:from-blue-800 hover:to-indigo-900 text-white py-3 rounded-xl font-bold text-xs shadow flex items-center justify-center gap-2">
-        <span>🤖</span> Generate AI Sales & Restock Report
-      </button>
+    <!-- TAB 5: OWNER ACCESS MANAGEMENT (NEW FEATURE) -->
+    <div id="sec-users" class="tab-content bg-white rounded-2xl p-4 shadow-sm border border-amber-200 space-y-3 hidden">
+      <div class="border-b pb-2">
+        <h2 class="font-bold text-gray-800 text-sm text-amber-900">👥 Registered Staff & Users</h2>
+        <p class="text-[11px] text-gray-500">Owner Yahan se kisi bhi staff member ka access dekh aur cancel kar sakte hain.</p>
+      </div>
 
-      <div id="aiReportBox" class="bg-slate-900 text-white p-3.5 rounded-xl space-y-3 text-xs hidden">
-        <div class="flex items-center justify-between border-b border-slate-700 pb-2">
-          <span class="font-bold text-amber-400 flex items-center gap-1">⚡ AI Inventory Advisor</span>
-          <span class="text-[10px] text-slate-400" id="reportDate"></span>
-        </div>
-
-        <div>
-          <p class="font-bold text-emerald-400 mb-1">🔥 Top Selling Items (This Week/Month):</p>
-          <ul id="topSellingList" class="list-disc list-inside text-slate-300 space-y-0.5"></ul>
-        </div>
-
-        <div class="border-t border-slate-800 pt-2">
-          <p class="font-bold text-amber-300 mb-1">📦 Recommended Stock for Next Month:</p>
-          <ul id="restockAdviceList" class="list-disc list-inside text-slate-300 space-y-0.5"></ul>
-        </div>
-
-        <div class="border-t border-slate-800 pt-2 text-[11px] text-slate-400 italic" id="aiSummaryNote"></div>
+      <div id="usersListDisplay" class="space-y-2">
+        <!-- Users dynamic list -->
       </div>
     </div>
 
   </div>
 
-  <!-- OWNER PIN MODAL -->
-  <div id="pinModal" class="fixed inset-0 bg-black/60 flex items-center justify-center p-4 hidden z-50">
-    <div class="bg-white p-5 rounded-2xl w-full max-w-xs space-y-3 shadow-xl text-center">
-      <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto text-xl font-bold">🔒</div>
-      <h3 class="font-bold text-base text-gray-800">Owner PIN Required</h3>
-      <p class="text-xs text-gray-500">Kripya 4-digit Owner PIN daalein (Default PIN: 2319)</p>
-      <input type="password" id="pinInput" maxlength="6" placeholder="••••" class="w-full border p-3 text-center font-bold text-lg rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500 tracking-widest">
-      <div class="flex gap-2 pt-1">
-        <button onclick="submitPin()" class="w-full bg-blue-600 text-white py-2.5 rounded-xl text-xs font-bold shadow">Unlock</button>
-        <button onclick="closePinModal()" class="w-full bg-gray-200 text-gray-700 py-2.5 rounded-xl text-xs">Cancel</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Firebase Config Modal -->
-  <div id="configModal" class="fixed inset-0 bg-black/60 flex items-center justify-center p-4 hidden z-50">
-    <div class="bg-white p-5 rounded-2xl w-full max-w-sm space-y-3 shadow-xl">
-      <h3 class="font-bold text-base text-gray-800">Paste Firebase Credentials</h3>
-      <p class="text-xs text-gray-500">Firebase Console se milne wala SDK Config Object yahan paste karein.</p>
-      <textarea id="firebaseConfigInput" rows="6" class="w-full border p-2 text-[11px] font-mono rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500" placeholder='{"apiKey": "...", "databaseURL": "..."}'></textarea>
-      <div class="flex gap-2 pt-1">
-        <button onclick="saveFirebaseConfig()" class="w-full bg-blue-600 text-white py-2.5 rounded-xl text-xs font-bold shadow">Connect Live Cloud</button>
-        <button onclick="closeConfigModal()" class="w-full bg-gray-200 text-gray-700 py-2.5 rounded-xl text-xs">Cancel</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Printable 36-Sticker Sheet Grid -->
+  <!-- Printable Sheet -->
   <div id="printableA4Sheet" class="hidden"></div>
 
   <script>
-    let db = null;
-    let inventory = JSON.parse(localStorage.getItem('ssc_inventory') || '[]');
-    let stickerQueue = JSON.parse(localStorage.getItem('ssc_sticker_queue') || '[]');
-    let salesHistory = JSON.parse(localStorage.getItem('ssc_sales') || '[]');
-    let cart = [];
-    let pendingCallback = null;
-
-    window.onload = function() {
-      generateAutoBarcode();
-      updateQueueCount();
-      renderStockList();
-      renderDatalist();
-      updateSalesOverview();
-
-      const savedLogo = localStorage.getItem('ssc_logo');
-      if (savedLogo) applyLogo(savedLogo);
-
-      const savedConfig = localStorage.getItem('ssc_firebase_config');
-      if (savedConfig) {
-        initFirebase(JSON.parse(savedConfig));
-      }
+    const DEFAULT_FIREBASE_CONFIG = {
+      apiKey: "AIzaSyAzyA_3rvqNlXvQ8fPiKx15WC09RYjFbRw",
+      authDomain: "srisaicollection-86cea.firebaseapp.com",
+      projectId: "srisaicollection-86cea",
+      storageBucket: "srisaicollection-86cea.firebasestorage.app",
+      messagingSenderId: "380897521333",
+      appId: "1:380897521333:web:9ac5b2d72eb7ff137698fc",
+      databaseURL: "https://srisaicollection-86cea-default-rtdb.firebaseio.com"
     };
 
-    // --- OWNER PIN SYSTEM (FIXED EXECUTION BUG) ---
-    function getOwnerPin() { return localStorage.getItem('ssc_owner_pin') || '1234'; }
+    firebase.initializeApp(DEFAULT_FIREBASE_CONFIG);
+    const auth = firebase.auth();
+    const db = firebase.database();
 
-    function protectedAction(callback) {
-      pendingCallback = callback;
-      document.getElementById('pinInput').value = '';
-      document.getElementById('pinModal').classList.remove('hidden');
-      document.getElementById('pinInput').focus();
-    }
+    let currentUser = null;
+    let currentUserRole = 'staff';
+    let inventory = [];
+    let stickerQueue = [];
+    let salesHistory = [];
+    let cart = [];
 
-    function closePinModal() {
-      document.getElementById('pinModal').classList.add('hidden');
-      document.getElementById('pinInput').value = '';
-    }
+    // Auth State Monitor
+    auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        currentUser = user;
+        document.getElementById('authScreen').classList.add('hidden');
 
-    function submitPin() {
-      const entered = document.getElementById('pinInput').value.trim();
-      if (entered === getOwnerPin()) {
-        const actionToRun = pendingCallback;
-        pendingCallback = null;
-        closePinModal();
-        if (actionToRun) actionToRun();
-      } else {
-        alert("❌ Galat Owner PIN!");
-      }
-    }
+        // Check Access & Role from DB
+        const snapshot = await db.ref('users/' + user.uid).once('value');
+        const userData = snapshot.val();
 
-    function changeOwnerPinPrompt() {
-      const oldPin = prompt("Purana Owner PIN daalein:");
-      if (oldPin === getOwnerPin()) {
-        const newPin = prompt("Naya 4-Digit Owner PIN daalein:");
-        if (newPin && newPin.length >= 4) {
-          localStorage.setItem('ssc_owner_pin', newPin);
-          alert("✅ PIN Safaltapurvak Badal Gaya!");
-        } else {
-          alert("❌ PIN kam se kam 4 digit ka hona chahiye.");
+        if (userData && userData.disabled) {
+          alert("❌ Aapka account Owner dwaara Deactivate/Remove kar diya gaya hai!");
+          auth.signOut();
+          return;
         }
-      } else if (oldPin !== null) {
-        alert("❌ Purana PIN Galat Hai!");
+
+        currentUserRole = userData ? userData.role : 'staff';
+        document.getElementById('userBadge').innerText = `${user.email} (${currentUserRole.toUpperCase()})`;
+
+        if (currentUserRole === 'owner') {
+          document.getElementById('tab-users').classList.remove('hidden');
+          listenToAllUsers();
+        } else {
+          document.getElementById('tab-users').classList.add('hidden');
+        }
+
+        initRealtimeData();
+      } else {
+        document.getElementById('authScreen').classList.remove('hidden');
       }
-    }
+    });
 
-    // --- FIREBASE SYSTEM ---
-    function initFirebase(config) {
+    // Login & Signup Functions
+    async function handleLogin() {
+      const email = document.getElementById('authEmail').value.trim();
+      const pass = document.getElementById('authPassword').value.trim();
       try {
-        if (!firebase.apps.length) firebase.initializeApp(config);
-        db = firebase.database();
-        
-        document.getElementById('syncStatus').innerText = '🟢 Live Cloud Synced';
-        document.getElementById('syncStatus').className = 'text-[11px] text-green-300 font-bold';
-
-        db.ref('ssc_inventory').on('value', (snapshot) => {
-          const data = snapshot.val();
-          inventory = data ? Object.values(data) : [];
-          localStorage.setItem('ssc_inventory', JSON.stringify(inventory));
-          renderStockList();
-          renderDatalist();
-        });
-
-        db.ref('ssc_sales').on('value', (snapshot) => {
-          const data = snapshot.val();
-          salesHistory = data ? Object.values(data) : [];
-          localStorage.setItem('ssc_sales', JSON.stringify(salesHistory));
-          updateSalesOverview();
-        });
-
-        db.ref('ssc_logo').on('value', (snapshot) => {
-          const cloudLogo = snapshot.val();
-          if (cloudLogo) applyLogo(cloudLogo);
-        });
-
-      } catch (err) {
-        alert('Firebase Connection Error: ' + err.message);
-      }
-    }
-
-    function saveFirebaseConfig() {
-      const input = document.getElementById('firebaseConfigInput').value.trim();
-      try {
-        const parsed = JSON.parse(input);
-        localStorage.setItem('ssc_firebase_config', JSON.stringify(parsed));
-        initFirebase(parsed);
-        closeConfigModal();
-        alert('Firebase Connected Successfully!');
+        await auth.signInWithEmailAndPassword(email, pass);
       } catch (e) {
-        alert('Invalid Config JSON!');
+        alert("Login Error: " + e.message);
       }
     }
 
-    function openConfigModal() { document.getElementById('configModal').classList.remove('hidden'); }
-    function closeConfigModal() { document.getElementById('configModal').classList.add('hidden'); }
+    async function handleSignup() {
+      const email = document.getElementById('authEmail').value.trim();
+      const pass = document.getElementById('authPassword').value.trim();
+      try {
+        const res = await auth.createUserWithEmailAndPassword(email, pass);
+        // Save initial user profile in DB
+        await db.ref('users/' + res.user.uid).set({
+          email: email,
+          role: 'staff',
+          disabled: false,
+          createdAt: new Date().toISOString()
+        });
+        alert("Account Created Successfully! Logged in as Staff.");
+      } catch (e) {
+        alert("Signup Error: " + e.message);
+      }
+    }
+
+    function handleLogout() {
+      auth.signOut();
+    }
+
+    // Owner Functions: Manage Staff Access
+    function listenToAllUsers() {
+      db.ref('users').on('value', (snapshot) => {
+        const usersData = snapshot.val() || {};
+        const display = document.getElementById('usersListDisplay');
+        display.innerHTML = '';
+
+        Object.keys(usersData).forEach(uid => {
+          const u = usersData[uid];
+          const isOwner = u.role === 'owner';
+          const isDisabled = u.disabled || false;
+
+          display.innerHTML += `
+            <div class="flex items-center justify-between p-3 border rounded-xl ${isDisabled ? 'bg-red-50 border-red-200' : 'bg-gray-50'}">
+              <div>
+                <p class="font-bold text-xs text-gray-800">${u.email} ${isOwner ? '<span class="text-amber-600 font-black">(OWNER)</span>' : ''}</p>
+                <p class="text-[10px] text-gray-500">Status: ${isDisabled ? '❌ Disabled' : '🟢 Active'}</p>
+              </div>
+              ${!isOwner ? `
+                <button onclick="toggleUserAccess('${uid}', ${!isDisabled})" class="text-xs px-3 py-1 rounded-lg font-bold ${isDisabled ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}">
+                  ${isDisabled ? 'Enable' : 'Remove Access'}
+                </button>
+              ` : ''}
+            </div>
+          `;
+        });
+      });
+    }
+
+    async function toggleUserAccess(uid, disableStatus) {
+      if (confirm(`Kya aap is user ka access ${disableStatus ? 'Remove/Block' : 'Enable'} karna chahte hain?`)) {
+        await db.ref('users/' + uid + '/disabled').set(disableStatus);
+      }
+    }
+
+    // Live App Data Initialization
+    function initRealtimeData() {
+      generateAutoBarcode();
+
+      db.ref('ssc_inventory').on('value', (snapshot) => {
+        inventory = snapshot.val() ? Object.values(snapshot.val()) : [];
+        renderStockList();
+        renderDatalist();
+      });
+
+      db.ref('ssc_sales').on('value', (snapshot) => {
+        salesHistory = snapshot.val() ? Object.values(snapshot.val()) : [];
+        updateSalesOverview();
+      });
+    }
 
     function showTab(tab) {
       document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
       document.getElementById('sec-' + tab).classList.remove('hidden');
-
-      if (tab === 'ai') updateSalesOverview();
-
-      ['entry', 'billing', 'stock', 'ai'].forEach(t => {
-        const btn = document.getElementById('tab-' + t);
-        if (btn) {
-          btn.className = (t === tab) 
-            ? "bg-blue-600 text-white font-semibold py-2 rounded-lg text-xs shadow text-center"
-            : "text-gray-700 font-semibold py-2 rounded-lg text-xs text-center";
-        }
-      });
     }
 
     function generateAutoBarcode() {
-      const code = 'SSC' + Math.floor(100000 + Math.random() * 900000);
-      document.getElementById('itemBarcode').value = code;
-    }
-
-    function setBrand(brand) { document.getElementById('itemBrand').value = brand; }
-
-    function uploadLogo(event) {
-      const file = event.target.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          const logoData = e.target.result;
-          applyLogo(logoData);
-          localStorage.setItem('ssc_logo', logoData);
-          if (db) db.ref('ssc_logo').set(logoData);
-        };
-        reader.readAsDataURL(file);
-      }
-    }
-
-    function applyLogo(logoData) {
-      const img = document.getElementById('headerLogo');
-      const placeholder = document.getElementById('logoPlaceholder');
-      img.src = logoData;
-      img.classList.remove('hidden');
-      placeholder.classList.add('hidden');
+      document.getElementById('itemBarcode').value = 'SSC' + Math.floor(100000 + Math.random() * 900000);
     }
 
     function addStockAndFillGrid() {
@@ -428,91 +353,46 @@
       const brand = document.getElementById('itemBrand').value.trim() || 'ND';
       const name = document.getElementById('itemName').value.trim();
       const shelf = document.getElementById('itemShelf').value.trim() || 'A-1';
-      const price = document.getElementById('itemPrice').value || 0;
-      const qty = parseInt(document.getElementById('itemStickerQty').value) || 1;
+      const price = Number(document.getElementById('itemPrice').value) || 0;
+      const qty = Number(document.getElementById('itemStickerQty').value) || 1;
 
-      if (!name) return alert("Please enter Item Name / Category!");
+      if (!name) return alert("Enter Item Name!");
 
-      const itemData = { barcode, brand, name, shelf, price: Number(price), qty: Number(qty) };
-
-      if (db) {
-        db.ref('ssc_inventory/' + barcode).set(itemData);
-      } else {
-        const existIndex = inventory.findIndex(i => i.barcode === barcode);
-        if (existIndex > -1) {
-          inventory[existIndex].qty += qty;
-        } else {
-          inventory.push(itemData);
-        }
-        localStorage.setItem('ssc_inventory', JSON.stringify(inventory));
-      }
+      const itemData = { barcode, brand, name, shelf, price, qty };
+      db.ref('ssc_inventory/' + barcode).set(itemData);
 
       for (let i = 0; i < qty; i++) {
         stickerQueue.push({ barcode, brand, name, shelf, price });
       }
-      localStorage.setItem('ssc_sticker_queue', JSON.stringify(stickerQueue));
 
-      updateQueueCount();
-      renderStockList();
-      renderDatalist();
-
-      alert(`Item "${name}" saved & added to print queue!`);
-
-      document.getElementById('itemName').value = '';
-      document.getElementById('itemPrice').value = '0';
-      generateAutoBarcode();
-    }
-
-    function updateQueueCount() {
       document.getElementById('queueBtn').innerText = `Clear Queue (${stickerQueue.length})`;
+      alert("Item Added!");
+      generateAutoBarcode();
     }
 
     function clearQueue() {
       stickerQueue = [];
-      localStorage.setItem('ssc_sticker_queue', JSON.stringify(stickerQueue));
-      updateQueueCount();
-      alert("Print Sticker Queue Cleared!");
-    }
-
-    function clearAllStock() {
-      if (confirm("Kya aap poora stock delete karna chahte hain?")) {
-        inventory = [];
-        localStorage.removeItem('ssc_inventory');
-        if (db) db.ref('ssc_inventory').remove();
-        renderStockList();
-        renderDatalist();
-        alert("Stock Cleared!");
-      }
+      document.getElementById('queueBtn').innerText = `Clear Queue (0)`;
     }
 
     function printA4StickerSheet() {
-      if (stickerQueue.length === 0) return alert("Sticker Queue is empty! Add items first.");
+      if (stickerQueue.length === 0) return alert("Queue is empty!");
 
       const sheet = document.getElementById('printableA4Sheet');
       const printItems = stickerQueue.slice(0, 36);
 
       sheet.innerHTML = printItems.map((stk, idx) => `
         <div class="sticker-box">
-          <div style="width: 100%; height: 50%; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+          <div style="width: 100%; height: 50%; display: flex; align-items: center; justify-content: center;">
             <svg id="stkBar_${idx}" style="width: 100%; height: 100%;"></svg>
           </div>
-          <div style="font-weight: 900; font-size: 13px; font-family: sans-serif; text-transform: uppercase; color: #000; line-height: 1; margin-top: 2px;">
-            ${(stk.brand + ' ' + stk.name).substring(0, 15)}
-          </div>
-          <div style="font-weight: 900; font-size: 15px; font-family: sans-serif; color: #000; line-height: 1; margin-bottom: 2px;">
-            ₹${stk.price}
-          </div>
+          <div style="font-weight: 900; font-size: 12px;">${(stk.brand + ' ' + stk.name).substring(0, 15)}</div>
+          <div style="font-weight: 900; font-size: 14px;">₹${stk.price}</div>
         </div>
       `).join('');
 
       printItems.forEach((stk, idx) => {
-        JsBarcode(`#stkBar_${idx}`, stk.barcode, { 
-          format: "CODE128", 
-          width: 1.8, 
-          height: 38, 
-          displayValue: false, 
-          margin: 0 
-        });
+        JsBarcode(`#stkBar_${idx}`, stk.barcode, { format: "CODE128", width: 1.8, height: 38, displayValue: false, margin: 0 });
       });
 
       window.print();
@@ -521,25 +401,20 @@
     function renderStockList() {
       const list = document.getElementById('stockListDisplay');
       if (!list) return;
-      list.innerHTML = inventory.map(item => `
+      list.innerHTML = inventory.map(i => `
         <div class="flex justify-between items-center p-2.5 bg-gray-50 border rounded-xl text-xs">
           <div>
-            <p class="font-bold text-gray-800">${item.brand} - ${item.name}</p>
-            <p class="text-gray-400 text-[11px]">Tag: <span class="font-mono text-gray-700">${item.barcode}</span> | Shelf: ${item.shelf}</p>
+            <p class="font-bold">${i.brand} - ${i.name}</p>
+            <p class="text-gray-400 text-[10px]">Tag: ${i.barcode}</p>
           </div>
-          <div class="text-right">
-            <p class="font-bold text-blue-700">₹${item.price}</p>
-            <p class="text-[10px] text-gray-500">Stock: <span class="font-bold text-gray-800">${item.qty}</span></p>
-          </div>
+          <p class="font-bold text-blue-700">₹${i.price}</p>
         </div>
       `).join('');
     }
 
     function renderDatalist() {
       const dl = document.getElementById('inventoryList');
-      if (dl) {
-        dl.innerHTML = inventory.map(i => `<option value="${i.barcode}">${i.brand} - ${i.name} (₹${i.price})</option>`).join('');
-      }
+      if (dl) dl.innerHTML = inventory.map(i => `<option value="${i.barcode}">${i.brand} - ${i.name}</option>`).join('');
     }
 
     function addItemToBill() {
@@ -549,8 +424,6 @@
         cart.push(item);
         renderCart();
         document.getElementById('billQuery').value = '';
-      } else {
-        alert("Item not found in stock!");
       }
     }
 
@@ -558,137 +431,46 @@
       const cl = document.getElementById('cartList');
       let total = 0;
       cl.innerHTML = cart.map(i => {
-        total += Number(i.price);
+        total += i.price;
         return `<li class="flex justify-between py-1"><span>${i.brand} - ${i.name}</span><span class="font-bold">₹${i.price}</span></li>`;
       }).join('');
       document.getElementById('cartTotal').innerText = '₹' + total;
     }
 
     function completeSale(sendWA) {
-      if (cart.length === 0) return alert("Cart is empty!");
-      const total = cart.reduce((s, i) => s + Number(i.price), 0);
-      const mob = document.getElementById('custMobile').value.trim();
-      const nowISO = new Date().toISOString();
+      if (cart.length === 0) return alert("Cart empty!");
+      const total = cart.reduce((s, i) => s + i.price, 0);
 
       cart.forEach(item => {
-        const saleItem = {
-          id: 'SL_' + Date.now() + Math.floor(Math.random()*100),
-          barcode: item.barcode,
-          name: item.name,
-          brand: item.brand,
-          price: Number(item.price),
-          date: nowISO
-        };
+        const saleItem = { id: 'SL_' + Date.now(), barcode: item.barcode, name: item.name, brand: item.brand, price: item.price, date: new Date().toISOString() };
         salesHistory.push(saleItem);
-
-        const stockItem = inventory.find(i => i.barcode === item.barcode);
-        if (stockItem && stockItem.qty > 0) stockItem.qty -= 1;
       });
 
-      localStorage.setItem('ssc_sales', JSON.stringify(salesHistory));
-      localStorage.setItem('ssc_inventory', JSON.stringify(inventory));
-
-      if (db) {
-        db.ref('ssc_sales').set(salesHistory);
-        db.ref('ssc_inventory').set(inventory);
-      }
+      db.ref('ssc_sales').set(salesHistory);
 
       if (sendWA) {
-        if (!mob) return alert("Please enter mobile number!");
-        let msg = `🛍️ *Sri Sai Collection*\n---------------------\n`;
+        const mob = document.getElementById('custMobile').value.trim();
+        let msg = `✨ *श्री साई कलेक्शन* ✨\n\n`;
         cart.forEach(i => msg += `• ${i.brand} ${i.name} - ₹${i.price}\n`);
-        msg += `---------------------\n*Total: ₹${total}*\nThank you! 🙏`;
+        msg += `\n💰 *Total: ₹${total}*`;
         window.open(`https://wa.me/91${mob}?text=${encodeURIComponent(msg)}`, '_blank');
       } else {
-        alert("✅ Sale Completed Successfully! Total: ₹" + total);
+        alert("Sale Complete!");
       }
 
       cart = [];
       renderCart();
-      renderStockList();
-      updateSalesOverview();
-      document.getElementById('custMobile').value = '';
     }
 
     function updateSalesOverview() {
+      let todayTotal = 0, monthTotal = 0;
       const todayStr = new Date().toDateString();
-      const currentMonth = new Date().getMonth();
-      const currentYear = new Date().getFullYear();
-
-      let todayTotal = 0, todayCount = 0;
-      let monthTotal = 0, monthCount = 0;
-
       salesHistory.forEach(s => {
-        const d = new Date(s.date);
-        if (d.toDateString() === todayStr) {
-          todayTotal += s.price;
-          todayCount += 1;
-        }
-        if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
-          monthTotal += s.price;
-          monthCount += 1;
-        }
+        if (new Date(s.date).toDateString() === todayStr) todayTotal += s.price;
+        monthTotal += s.price;
       });
-
       document.getElementById('todaySalesAmount').innerText = '₹' + todayTotal;
-      document.getElementById('todaySalesCount').innerText = todayCount + ' items sold';
       document.getElementById('monthSalesAmount').innerText = '₹' + monthTotal;
-      document.getElementById('monthSalesCount').innerText = monthCount + ' items sold';
-    }
-
-    function generateAISaleReport() {
-      if (salesHistory.length === 0) return alert("Abhi tak koi sale record nahi hai! Pehle kuch bills complete karein.");
-
-      const itemSalesMap = {};
-      const now = new Date();
-      const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
-
-      salesHistory.forEach(s => {
-        const sDate = new Date(s.date);
-        if (sDate >= thirtyDaysAgo) {
-          const key = (s.brand + ' ' + s.name).trim();
-          if (!itemSalesMap[key]) itemSalesMap[key] = { count: 0, revenue: 0, barcode: s.barcode };
-          itemSalesMap[key].count += 1;
-          itemSalesMap[key].revenue += s.price;
-        }
-      });
-
-      const sortedItems = Object.keys(itemSalesMap).sort((a,b) => itemSalesMap[b].count - itemSalesMap[a].count);
-
-      const topSellingHTML = sortedItems.slice(0, 4).map(key => 
-        `<li><span class="font-bold text-white">${key}</span>: ${itemSalesMap[key].count} units (₹${itemSalesMap[key].revenue})</li>`
-      ).join('');
-
-      const restockHTML = sortedItems.map(key => {
-        const soldQty = itemSalesMap[key].count;
-        const currentInv = inventory.find(i => (i.brand + ' ' + i.name).trim() === key);
-        const currentStock = currentInv ? currentInv.qty : 0;
-        const targetStock = Math.ceil(soldQty * 1.5);
-        const neededStock = Math.max(0, targetStock - currentStock);
-
-        if (neededStock > 0) {
-          return `<li><span class="font-bold text-amber-200">${key}</span>: ${neededStock} units mangwane honge (Stock: ${currentStock})</li>`;
-        }
-        return null;
-      }).filter(Boolean).slice(0, 4).join('');
-
-      document.getElementById('topSellingList').innerHTML = topSellingHTML || '<li>Koi data nahi mila</li>';
-      document.getElementById('restockAdviceList').innerHTML = restockHTML || '<li>Aapka stock currently demand ke hisab se sufficient hai!</li>';
-      document.getElementById('reportDate').innerText = 'Generated: ' + new Date().toLocaleDateString();
-      document.getElementById('aiSummaryNote').innerText = '💡 Tip: Aane wale mahine me in restock items ki demand 30% zyada hone ke chances hain.';
-
-      document.getElementById('aiReportBox').classList.remove('hidden');
-    }
-
-    function clearSalesHistory() {
-      if (confirm("Kya aap poora Sales Data delete karna chahte hain?")) {
-        salesHistory = [];
-        localStorage.removeItem('ssc_sales');
-        if (db) db.ref('ssc_sales').remove();
-        updateSalesOverview();
-        document.getElementById('aiReportBox').classList.add('hidden');
-        alert("Sales History Cleared!");
-      }
     }
   </script>
 </body>
