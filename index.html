@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sri Sai Collection - Smart Stock & Sticker Manager</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Firebase Compat SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
   <!-- JsBarcode -->
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
   <style>
@@ -42,12 +45,17 @@
 
         <div>
           <h1 class="text-lg font-bold tracking-wide">Sri Sai Collection</h1>
-          <p class="text-[11px] text-blue-200">Smart Stock, Shelf & 36-Sticker Manager</p>
+          <p class="text-[11px] text-blue-200" id="syncStatus">Offline / Local Mode</p>
           <button onclick="document.getElementById('logoInput').click()" class="text-[11px] underline text-blue-200 hover:text-white">
             Upload / Change Shop Logo
           </button>
         </div>
       </div>
+
+      <!-- Firebase Setup Button -->
+      <button onclick="openConfigModal()" class="bg-blue-900 border border-blue-400 text-xs px-2.5 py-1.5 rounded-xl font-bold shadow hover:bg-blue-950">
+        ⚙️ Firebase
+      </button>
     </div>
 
     <!-- Navigation Tabs -->
@@ -175,10 +183,32 @@
 
   </div>
 
-  <!-- Hidden Printable 36-Sticker Sheet Grid -->
+  <!-- Firebase Config Modal -->
+  <div id="configModal" class="fixed inset-0 bg-black/60 flex items-center justify-center p-4 hidden z-50">
+    <div class="bg-white p-5 rounded-2xl w-full max-w-sm space-y-3 shadow-xl">
+      <h3 class="font-bold text-base text-gray-800">Paste Firebase Credentials</h3>
+      <p class="text-xs text-gray-500">Firebase Console se milne wala SDK Config Object yahan paste karke Cloud connect karein.</p>
+      <textarea id="firebaseConfigInput" rows="6" class="w-full border p-2 text-[11px] font-mono rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500" placeholder='{
+  "apiKey": "AIzaSy...",
+  "authDomain": "...",
+  "databaseURL": "https://...",
+  "projectId": "...",
+  "storageBucket": "...",
+  "messagingSenderId": "...",
+  "appId": "..."
+}'></textarea>
+      <div class="flex gap-2 pt-1">
+        <button onclick="saveFirebaseConfig()" class="w-full bg-blue-600 text-white py-2.5 rounded-xl text-xs font-bold shadow">Connect Live Cloud</button>
+        <button onclick="closeConfigModal()" class="w-full bg-gray-200 text-gray-700 py-2.5 rounded-xl text-xs">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Printable 36-Sticker Sheet Grid -->
   <div id="printableA4Sheet" class="hidden"></div>
 
   <script>
+    let db = null;
     let inventory = JSON.parse(localStorage.getItem('ssc_inventory') || '[]');
     let stickerQueue = JSON.parse(localStorage.getItem('ssc_sticker_queue') || '[]');
     let cart = [];
@@ -189,9 +219,62 @@
       renderStockList();
       renderDatalist();
 
+      // Load Saved Logo
       const savedLogo = localStorage.getItem('ssc_logo');
       if (savedLogo) applyLogo(savedLogo);
+
+      // Auto-init Firebase if config exists
+      const savedConfig = localStorage.getItem('ssc_firebase_config');
+      if (savedConfig) {
+        initFirebase(JSON.parse(savedConfig));
+      }
     };
+
+    function initFirebase(config) {
+      try {
+        if (!firebase.apps.length) firebase.initializeApp(config);
+        db = firebase.database();
+        
+        document.getElementById('syncStatus').innerText = '🟢 Live Cloud Synced';
+        document.getElementById('syncStatus').className = 'text-[11px] text-green-300 font-bold';
+
+        // Realtime Stock Listener
+        db.ref('ssc_inventory').on('value', (snapshot) => {
+          const data = snapshot.val();
+          if (data) {
+            inventory = Object.values(data);
+            localStorage.setItem('ssc_inventory', JSON.stringify(inventory));
+            renderStockList();
+            renderDatalist();
+          }
+        });
+
+        // Realtime Logo Listener
+        db.ref('ssc_logo').on('value', (snapshot) => {
+          const cloudLogo = snapshot.val();
+          if (cloudLogo) applyLogo(cloudLogo);
+        });
+
+      } catch (err) {
+        alert('Firebase Connection Error: ' + err.message);
+      }
+    }
+
+    function saveFirebaseConfig() {
+      const input = document.getElementById('firebaseConfigInput').value.trim();
+      try {
+        const parsed = JSON.parse(input);
+        localStorage.setItem('ssc_firebase_config', JSON.stringify(parsed));
+        initFirebase(parsed);
+        closeConfigModal();
+        alert('Firebase Connected Successfully!');
+      } catch (e) {
+        alert('Invalid Config JSON! Please copy full JSON code from Firebase.');
+      }
+    }
+
+    function openConfigModal() { document.getElementById('configModal').classList.remove('hidden'); }
+    function closeConfigModal() { document.getElementById('configModal').classList.add('hidden'); }
 
     function showTab(tab) {
       document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
@@ -224,6 +307,7 @@
           const logoData = e.target.result;
           applyLogo(logoData);
           localStorage.setItem('ssc_logo', logoData);
+          if (db) db.ref('ssc_logo').set(logoData);
         };
         reader.readAsDataURL(file);
       }
@@ -249,16 +333,20 @@
 
       const itemData = { barcode, brand, name, shelf, price: Number(price), qty: Number(qty) };
 
-      // Update Stock Inventory
-      const existIndex = inventory.findIndex(i => i.barcode === barcode);
-      if (existIndex > -1) {
-        inventory[existIndex].qty += qty;
+      // Save to Firebase Cloud
+      if (db) {
+        db.ref('ssc_inventory/' + barcode).set(itemData);
       } else {
-        inventory.push(itemData);
+        const existIndex = inventory.findIndex(i => i.barcode === barcode);
+        if (existIndex > -1) {
+          inventory[existIndex].qty += qty;
+        } else {
+          inventory.push(itemData);
+        }
+        localStorage.setItem('ssc_inventory', JSON.stringify(inventory));
       }
-      localStorage.setItem('ssc_inventory', JSON.stringify(inventory));
 
-      // Push to Sticker Print Queue
+      // Add to Sticker Queue
       for (let i = 0; i < qty; i++) {
         stickerQueue.push({ barcode, brand, name, shelf, price });
       }
@@ -268,9 +356,8 @@
       renderStockList();
       renderDatalist();
 
-      alert(`Item "${name}" saved & added to Sticker Grid!`);
+      alert(`Item "${name}" saved & synced!`);
 
-      // Reset Inputs
       document.getElementById('itemName').value = '';
       document.getElementById('itemPrice').value = '0';
       generateAutoBarcode();
@@ -288,7 +375,7 @@
     }
 
     function printA4StickerSheet() {
-      if (stickerQueue.length === 0) return alert("Sticker Queue is empty! Add items first.");
+      if (stickerQueue.length === 0) return alert("Sticker Queue is empty!");
 
       const sheet = document.getElementById('printableA4Sheet');
       sheet.innerHTML = stickerQueue.map((stk, idx) => `
@@ -303,7 +390,6 @@
         </div>
       `).join('');
 
-      // Render Barcodes
       stickerQueue.forEach((stk, idx) => {
         JsBarcode(`#stkBar_${idx}`, stk.barcode, { format: "CODE128", width: 1.2, height: 25, displayValue: true, fontSize: 8 });
       });
