@@ -22,12 +22,24 @@
 
   <!-- Top Navbar -->
   <header class="bg-indigo-700 text-white p-4 shadow-md flex justify-between items-center">
-    <div>
-      <h1 class="text-xl font-bold">Sri Sai Collection</h1>
-      <p class="text-xs text-indigo-200" id="syncStatus">Offline / Local Mode</p>
+    <div class="flex items-center gap-3">
+      <!-- Shop Logo -->
+      <div class="relative group cursor-pointer" onclick="document.getElementById('logoInput').click()">
+        <img id="headerLogo" class="w-12 h-12 rounded-full object-cover border-2 border-white bg-indigo-800 hidden" alt="Logo">
+        <div id="logoPlaceholder" class="w-12 h-12 rounded-full bg-indigo-800 border-2 border-indigo-400 flex items-center justify-center text-xs font-bold text-indigo-200 text-center leading-tight">
+          📷<br>Logo
+        </div>
+        <input type="file" id="logoInput" accept="image/*" class="hidden" onchange="uploadLogo(event)">
+      </div>
+
+      <div>
+        <h1 class="text-lg font-bold leading-tight">Sri Sai Collection</h1>
+        <p class="text-[11px] text-indigo-200" id="syncStatus">Offline / Local Mode</p>
+      </div>
     </div>
-    <button onclick="openConfigModal()" class="bg-indigo-800 text-xs px-3 py-2 rounded border border-indigo-500">
-      ⚙️ Firebase Setup
+
+    <button onclick="openConfigModal()" class="bg-indigo-800 text-xs px-2.5 py-2 rounded border border-indigo-500 font-medium">
+      ⚙️ Setup
     </button>
   </header>
 
@@ -39,7 +51,7 @@
         <span class="text-sm font-semibold">Current Mode: </span>
         <span id="roleLabel" class="text-sm text-green-600 font-bold">Staff Mode</span>
       </div>
-      <button onclick="switchRole()" class="text-xs bg-gray-200 text-gray-800 px-3 py-1.5 rounded">
+      <button onclick="switchRole()" class="text-xs bg-gray-200 text-gray-800 px-3 py-1.5 rounded font-medium">
         Switch to Owner
       </button>
     </div>
@@ -62,7 +74,10 @@
       <h2 class="font-bold text-gray-700">Quick Scan & Bill</h2>
       
       <div class="flex gap-2">
-        <input type="text" id="manualBarcode" placeholder="Enter Barcode / Item ID" class="border p-2 rounded text-sm w-full">
+        <!-- Auto Suggestion Input -->
+        <input type="text" id="manualBarcode" list="inventoryList" placeholder="Search Item Name or Barcode ID..." class="border p-2 rounded text-sm w-full">
+        <datalist id="inventoryList"></datalist>
+
         <button onclick="addItemToBill()" class="bg-indigo-600 text-white px-4 py-2 rounded text-sm font-bold">Add</button>
       </div>
 
@@ -82,10 +97,10 @@
 
         <div class="grid grid-cols-2 gap-2 mt-3">
           <button onclick="completeSale(false)" class="bg-green-600 text-white py-2.5 rounded-lg font-bold text-xs shadow">
-            🖨️ Print Bill
+            🖨️ Complete Sale
           </button>
           <button onclick="completeSale(true)" class="bg-emerald-700 text-white py-2.5 rounded-lg font-bold text-xs shadow">
-            💬 Complete & WhatsApp
+            💬 Sale & WhatsApp
           </button>
         </div>
       </div>
@@ -101,9 +116,9 @@
       </div>
       <div class="flex gap-2">
         <input type="number" id="itemQty" placeholder="Quantity" class="w-full border p-2 rounded text-sm">
-        <input type="text" id="itemBarcode" placeholder="Barcode (Optional)" class="w-full border p-2 rounded text-sm">
+        <input type="text" id="itemBarcode" placeholder="Barcode Code (Optional)" class="w-full border p-2 rounded text-sm">
       </div>
-      <button onclick="saveStockItem()" class="w-full bg-indigo-600 text-white py-2 rounded font-bold text-sm">
+      <button onclick="saveStockItem()" class="w-full bg-indigo-600 text-white py-2.5 rounded font-bold text-sm shadow">
         Save Item & Sync
       </button>
 
@@ -161,6 +176,18 @@
     let cart = [];
 
     window.onload = function() {
+      // Load saved logo
+      const savedLogo = localStorage.getItem('sri_sai_logo');
+      if (savedLogo) applyLogo(savedLogo);
+
+      // Load saved local stock
+      const savedStock = localStorage.getItem('sri_sai_local_stock');
+      if (savedStock) {
+        inventory = JSON.parse(savedStock);
+        renderInventory();
+      }
+
+      // Load Firebase if available
       const savedConfig = localStorage.getItem('sri_sai_firebase_config');
       if (savedConfig) {
         initFirebase(JSON.parse(savedConfig));
@@ -174,14 +201,45 @@
         document.getElementById('syncStatus').innerText = '🟢 Cloud Live Sync Active';
         document.getElementById('syncStatus').className = 'text-xs text-green-300 font-bold';
         
+        // Inventory Sync
         db.ref('inventory').on('value', (snapshot) => {
           const data = snapshot.val();
           inventory = data ? Object.values(data) : [];
+          localStorage.setItem('sri_sai_local_stock', JSON.stringify(inventory));
           renderInventory();
         });
+
+        // Logo Sync
+        db.ref('shopLogo').on('value', (snapshot) => {
+          const cloudLogo = snapshot.val();
+          if (cloudLogo) applyLogo(cloudLogo);
+        });
+
       } catch (err) {
         alert('Firebase Error: ' + err.message);
       }
+    }
+
+    function uploadLogo(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const base64Logo = e.target.result;
+          applyLogo(base64Logo);
+          localStorage.setItem('sri_sai_logo', base64Logo);
+          if (db) db.ref('shopLogo').set(base64Logo);
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    function applyLogo(logoData) {
+      const img = document.getElementById('headerLogo');
+      const placeholder = document.getElementById('logoPlaceholder');
+      img.src = logoData;
+      img.classList.remove('hidden');
+      placeholder.classList.add('hidden');
     }
 
     function saveFirebaseConfig() {
@@ -234,15 +292,21 @@
     }
 
     function addItemToBill() {
-      const code = document.getElementById('manualBarcode').value.trim();
-      if (!code) return;
-      const item = inventory.find(i => i.id === code || i.name.toLowerCase() === code.toLowerCase());
+      const query = document.getElementById('manualBarcode').value.trim().toLowerCase();
+      if (!query) return;
+
+      // Search logic: Match Barcode ID OR Item Name (Exact or Partial)
+      const item = inventory.find(i => 
+        String(i.id).toLowerCase() === query || 
+        i.name.toLowerCase().includes(query)
+      );
+
       if (item) {
         cart.push(item);
         renderCart();
         document.getElementById('manualBarcode').value = '';
       } else {
-        alert('Item not found in inventory!');
+        alert('Item not found! Check item list in Stock Entry.');
       }
     }
 
@@ -280,7 +344,7 @@
         const waUrl = `https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`;
         window.open(waUrl, '_blank');
       } else {
-        alert('Sale Completed! Total: ₹' + total);
+        alert('Sale Completed! Total Amount: ₹' + total);
       }
 
       cart = [];
@@ -289,12 +353,12 @@
     }
 
     function saveStockItem() {
-      const name = document.getElementById('itemName').value;
+      const name = document.getElementById('itemName').value.trim();
       const price = document.getElementById('itemPrice').value;
-      const barcode = document.getElementById('itemBarcode').value || Date.now().toString().slice(-6);
+      const barcode = document.getElementById('itemBarcode').value.trim() || Date.now().toString().slice(-6);
       const qty = document.getElementById('itemQty').value || 1;
 
-      if (!name || !price) return alert("Item Name aur Price zaroori hain");
+      if (!name || !price) return alert("Item Name aur Price bharna zaroori hai!");
 
       const itemData = { id: barcode, name, price: Number(price), qty: Number(qty) };
 
@@ -302,10 +366,11 @@
         db.ref('inventory/' + barcode).set(itemData);
       } else {
         inventory.push(itemData);
+        localStorage.setItem('sri_sai_local_stock', JSON.stringify(inventory));
         renderInventory();
       }
 
-      alert("Item Saved Successfully!");
+      alert(`Item "${name}" Saved Successfully! (ID: ${barcode})`);
       document.getElementById('itemName').value = '';
       document.getElementById('itemPrice').value = '';
       document.getElementById('itemBarcode').value = '';
@@ -313,22 +378,32 @@
     }
 
     function renderInventory() {
+      // 1. Render Inventory List
       const list = document.getElementById('stockList');
-      if (!list) return;
-      list.innerHTML = inventory.map(item => `
-        <div class="flex justify-between items-center p-2 bg-gray-50 rounded border text-xs">
-          <div>
-            <p class="font-bold text-gray-800">${item.name}</p>
-            <p class="text-gray-400">ID: ${item.id} | Qty: ${item.qty}</p>
+      if (list) {
+        list.innerHTML = inventory.map(item => `
+          <div class="flex justify-between items-center p-2 bg-gray-50 rounded border text-xs">
+            <div>
+              <p class="font-bold text-gray-800">${item.name}</p>
+              <p class="text-gray-400">ID / Barcode: <span class="font-mono text-gray-700">${item.id}</span> | Qty: ${item.qty}</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-indigo-600">₹${item.price}</span>
+              <button onclick="openStickerModal('${item.id}', '${item.name}', ${item.price})" class="bg-gray-200 hover:bg-indigo-100 text-indigo-700 px-2 py-1 rounded text-[10px] font-bold">
+                🖨️ Sticker
+              </button>
+            </div>
           </div>
-          <div class="flex items-center gap-2">
-            <span class="font-bold text-indigo-600">₹${item.price}</span>
-            <button onclick="openStickerModal('${item.id}', '${item.name}', ${item.price})" class="bg-gray-200 hover:bg-indigo-100 text-indigo-700 px-2 py-1 rounded text-[10px] font-bold">
-              🖨️ Sticker
-            </button>
-          </div>
-        </div>
-      `).join('');
+        `).join('');
+      }
+
+      // 2. Render Auto-complete Datalist for Billing Search
+      const datalist = document.getElementById('inventoryList');
+      if (datalist) {
+        datalist.innerHTML = inventory.map(item => `
+          <option value="${item.name}">ID: ${item.id} - ₹${item.price}</option>
+        `).join('');
+      }
     }
 
     function openStickerModal(id, name, price) {
