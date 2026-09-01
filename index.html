@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sri Sai Collection - Multi-User Stock & Access Control</title>
+  <title>Sri Sai Collection - Smart Stock & Access</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Firebase Compat SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
@@ -62,6 +62,7 @@
     <!-- Header Block -->
     <div class="bg-blue-800 text-white p-4 rounded-2xl shadow-md flex items-center justify-between">
       <div class="flex items-center gap-3">
+        <!-- Logo Upload Container -->
         <div class="relative cursor-pointer" onclick="document.getElementById('logoInput').click()">
           <img id="headerLogo" class="w-12 h-12 rounded-full object-cover border-2 border-white bg-white hidden" alt="Logo">
           <div id="logoPlaceholder" class="w-12 h-12 rounded-full bg-blue-900 border-2 border-blue-400 flex items-center justify-center font-bold text-white text-xs shadow">SSC</div>
@@ -96,9 +97,9 @@
       </div>
 
       <div>
-        <label class="block text-xs font-semibold text-gray-600 mb-1">Barcode / Tag No.</label>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Barcode / Tag No. (Scan/Type)</label>
         <div class="flex gap-2">
-          <input type="text" id="itemBarcode" class="flex-1 border border-gray-300 rounded-xl p-2 text-xs font-mono outline-none">
+          <input type="text" id="itemBarcode" class="flex-1 border border-gray-300 rounded-xl p-2 text-xs font-mono outline-none" placeholder="Scan or type barcode...">
           <button onclick="generateAutoBarcode()" class="bg-blue-600 text-white px-3 py-2 rounded-xl text-xs font-bold">⚡ Auto</button>
         </div>
       </div>
@@ -137,7 +138,7 @@
     <div id="sec-billing" class="tab-content bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3 hidden">
       <h2 class="font-bold text-gray-800 text-sm">POS Billing</h2>
       <div class="flex gap-2">
-        <input type="text" id="billQuery" list="inventoryList" placeholder="Search Item or Barcode..." class="w-full border p-2 rounded-xl text-xs">
+        <input type="text" id="billQuery" list="inventoryList" placeholder="Scan Barcode or Search Item..." class="w-full border p-2 rounded-xl text-xs">
         <datalist id="inventoryList"></datalist>
         <button onclick="addItemToBill()" class="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold">Add</button>
       </div>
@@ -163,9 +164,7 @@
 
     <!-- TAB 3: Stock List -->
     <div id="sec-stock" class="tab-content bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3 hidden">
-      <div class="flex justify-between items-center">
-        <h2 class="font-bold text-gray-800 text-sm">Live Inventory</h2>
-      </div>
+      <h2 class="font-bold text-gray-800 text-sm">Live Inventory</h2>
       <div id="stockListDisplay" class="space-y-2 max-h-80 overflow-y-auto"></div>
     </div>
 
@@ -184,16 +183,14 @@
       </div>
     </div>
 
-    <!-- TAB 5: OWNER ACCESS MANAGEMENT (NEW FEATURE) -->
+    <!-- TAB 5: OWNER ACCESS MANAGEMENT -->
     <div id="sec-users" class="tab-content bg-white rounded-2xl p-4 shadow-sm border border-amber-200 space-y-3 hidden">
       <div class="border-b pb-2">
         <h2 class="font-bold text-gray-800 text-sm text-amber-900">👥 Registered Staff & Users</h2>
-        <p class="text-[11px] text-gray-500">Owner Yahan se kisi bhi staff member ka access dekh aur cancel kar sakte hain.</p>
+        <p class="text-[11px] text-gray-500">Owner yahan se staff ka access control kar sakte hain.</p>
       </div>
 
-      <div id="usersListDisplay" class="space-y-2">
-        <!-- Users dynamic list -->
-      </div>
+      <div id="usersListDisplay" class="space-y-2"></div>
     </div>
 
   </div>
@@ -229,12 +226,11 @@
         currentUser = user;
         document.getElementById('authScreen').classList.add('hidden');
 
-        // Check Access & Role from DB
         const snapshot = await db.ref('users/' + user.uid).once('value');
         const userData = snapshot.val();
 
         if (userData && userData.disabled) {
-          alert("❌ Aapka account Owner dwaara Deactivate/Remove kar diya gaya hai!");
+          alert("❌ Aapka account Owner dwaara Deactivate kar diya gaya hai!");
           auth.signOut();
           return;
         }
@@ -255,7 +251,6 @@
       }
     });
 
-    // Login & Signup Functions
     async function handleLogin() {
       const email = document.getElementById('authEmail').value.trim();
       const pass = document.getElementById('authPassword').value.trim();
@@ -271,7 +266,6 @@
       const pass = document.getElementById('authPassword').value.trim();
       try {
         const res = await auth.createUserWithEmailAndPassword(email, pass);
-        // Save initial user profile in DB
         await db.ref('users/' + res.user.uid).set({
           email: email,
           role: 'staff',
@@ -288,7 +282,18 @@
       auth.signOut();
     }
 
-    // Owner Functions: Manage Staff Access
+    // Logo Upload Handling & Realtime Sync
+    function uploadLogo(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const base64Data = e.target.result;
+        db.ref('ssc_shop_logo').set(base64Data);
+      };
+      reader.readAsDataURL(file);
+    }
+
     function listenToAllUsers() {
       db.ref('users').on('value', (snapshot) => {
         const usersData = snapshot.val() || {};
@@ -318,26 +323,54 @@
     }
 
     async function toggleUserAccess(uid, disableStatus) {
-      if (confirm(`Kya aap is user ka access ${disableStatus ? 'Remove/Block' : 'Enable'} karna chahte hain?`)) {
+      if (confirm(`Kya aap is user ka access ${disableStatus ? 'Block' : 'Enable'} karna chahte hain?`)) {
         await db.ref('users/' + uid + '/disabled').set(disableStatus);
       }
     }
 
-    // Live App Data Initialization
     function initRealtimeData() {
       generateAutoBarcode();
 
+      // Inventory Listener
       db.ref('ssc_inventory').on('value', (snapshot) => {
         inventory = snapshot.val() ? Object.values(snapshot.val()) : [];
         renderStockList();
         renderDatalist();
       });
 
+      // Sales Listener
       db.ref('ssc_sales').on('value', (snapshot) => {
         salesHistory = snapshot.val() ? Object.values(snapshot.val()) : [];
         updateSalesOverview();
       });
+
+      // Logo Listener
+      db.ref('ssc_shop_logo').on('value', (snapshot) => {
+        const logoUrl = snapshot.val();
+        const logoImg = document.getElementById('headerLogo');
+        const placeholder = document.getElementById('logoPlaceholder');
+        if (logoUrl) {
+          logoImg.src = logoUrl;
+          logoImg.classList.remove('hidden');
+          placeholder.classList.add('hidden');
+        } else {
+          logoImg.classList.add('hidden');
+          placeholder.classList.remove('hidden');
+        }
+      });
     }
+
+    // Auto-fill Item details when barcode is typed or scanned in Entry Tab
+    document.getElementById('itemBarcode').addEventListener('input', function() {
+      const code = this.value.trim();
+      const found = inventory.find(i => i.barcode === code);
+      if (found) {
+        document.getElementById('itemBrand').value = found.brand || '';
+        document.getElementById('itemName').value = found.name || '';
+        document.getElementById('itemShelf').value = found.shelf || '';
+        document.getElementById('itemPrice').value = found.price || 0;
+      }
+    });
 
     function showTab(tab) {
       document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
@@ -346,6 +379,7 @@
 
     function generateAutoBarcode() {
       document.getElementById('itemBarcode').value = 'SSC' + Math.floor(100000 + Math.random() * 900000);
+      document.getElementById('itemBarcode').dispatchEvent(new Event('input'));
     }
 
     function addStockAndFillGrid() {
@@ -366,7 +400,7 @@
       }
 
       document.getElementById('queueBtn').innerText = `Clear Queue (${stickerQueue.length})`;
-      alert("Item Added!");
+      alert("Stock Added & Queue Updated!");
       generateAutoBarcode();
     }
 
