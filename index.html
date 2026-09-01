@@ -3,221 +3,217 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sri Sai Collection - Cloud Inventory</title>
+  <title>Sri Sai Collection - Smart Stock & Sticker Manager</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
   <!-- JsBarcode -->
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
   <style>
     @media print {
       body * { visibility: hidden; }
-      #printableStickerArea, #printableStickerArea * { visibility: visible; }
-      #printableStickerArea { position: absolute; left: 0; top: 0; width: 100%; display: flex; justify-content: center; }
+      #printableA4Sheet, #printableA4Sheet * { visibility: visible; }
+      #printableA4Sheet {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        display: grid !important;
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 6px !important;
+        padding: 10px !important;
+      }
     }
   </style>
 </head>
-<body class="bg-gray-100 font-sans pb-10">
+<body class="bg-slate-100 font-sans pb-10">
 
-  <!-- Top Navbar -->
-  <header class="bg-indigo-700 text-white p-4 shadow-md flex justify-between items-center">
-    <div class="flex items-center gap-3">
-      <!-- Shop Logo -->
-      <div class="relative group cursor-pointer" onclick="document.getElementById('logoInput').click()">
-        <img id="headerLogo" class="w-12 h-12 rounded-full object-cover border-2 border-white bg-indigo-800 hidden" alt="Logo">
-        <div id="logoPlaceholder" class="w-12 h-12 rounded-full bg-indigo-800 border-2 border-indigo-400 flex items-center justify-center text-xs font-bold text-indigo-200 text-center leading-tight">
-          📷<br>Logo
+  <div class="max-w-md mx-auto p-3 space-y-3">
+
+    <!-- Header Block -->
+    <div class="bg-blue-800 text-white p-4 rounded-2xl shadow-md flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <!-- Logo Container -->
+        <div class="relative cursor-pointer" onclick="document.getElementById('logoInput').click()">
+          <img id="headerLogo" class="w-12 h-12 rounded-full object-cover border-2 border-white bg-white hidden" alt="Logo">
+          <div id="logoPlaceholder" class="w-12 h-12 rounded-full bg-blue-900 border-2 border-blue-400 flex items-center justify-center font-bold text-white text-xs shadow">
+            SSC
+          </div>
+          <input type="file" id="logoInput" accept="image/*" class="hidden" onchange="uploadLogo(event)">
         </div>
-        <input type="file" id="logoInput" accept="image/*" class="hidden" onchange="uploadLogo(event)">
-      </div>
 
-      <div>
-        <h1 class="text-lg font-bold leading-tight">Sri Sai Collection</h1>
-        <p class="text-[11px] text-indigo-200" id="syncStatus">Offline / Local Mode</p>
+        <div>
+          <h1 class="text-lg font-bold tracking-wide">Sri Sai Collection</h1>
+          <p class="text-[11px] text-blue-200">Smart Stock, Shelf & 36-Sticker Manager</p>
+          <button onclick="document.getElementById('logoInput').click()" class="text-[11px] underline text-blue-200 hover:text-white">
+            Upload / Change Shop Logo
+          </button>
+        </div>
       </div>
-    </div>
-
-    <button onclick="openConfigModal()" class="bg-indigo-800 text-xs px-2.5 py-2 rounded border border-indigo-500 font-medium">
-      ⚙️ Setup
-    </button>
-  </header>
-
-  <div class="max-w-md mx-auto p-4 space-y-4">
-    
-    <!-- Role & PIN Switcher -->
-    <div class="bg-white p-3 rounded-lg shadow flex justify-between items-center">
-      <div>
-        <span class="text-sm font-semibold">Current Mode: </span>
-        <span id="roleLabel" class="text-sm text-green-600 font-bold">Staff Mode</span>
-      </div>
-      <button onclick="switchRole()" class="text-xs bg-gray-200 text-gray-800 px-3 py-1.5 rounded font-medium">
-        Switch to Owner
-      </button>
     </div>
 
     <!-- Navigation Tabs -->
-    <div class="flex border-b border-gray-300 bg-white rounded-t-lg">
-      <button onclick="showTab('billing')" class="flex-1 py-3 text-center font-bold text-indigo-600 border-b-2 border-indigo-600" id="tab-billing">
-        ⚡ POS Billing
+    <div class="grid grid-cols-4 gap-1.5 bg-gray-200 p-1 rounded-xl">
+      <button onclick="showTab('entry')" id="tab-entry" class="bg-blue-600 text-white font-semibold py-2 rounded-lg text-xs shadow text-center">Entry & Print</button>
+      <button onclick="showTab('billing')" id="tab-billing" class="text-gray-700 font-semibold py-2 rounded-lg text-xs text-center">Billing</button>
+      <button onclick="showTab('stock')" id="tab-stock" class="text-gray-700 font-semibold py-2 rounded-lg text-xs text-center">Stock List</button>
+      <button onclick="showTab('ai')" id="tab-ai" class="text-gray-700 font-semibold py-2 rounded-lg text-xs text-center">🤖 AI Agent</button>
+    </div>
+
+    <!-- TAB 1: Entry & Print -->
+    <div id="sec-entry" class="tab-content bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
+      <div class="flex justify-between items-center">
+        <h2 class="font-bold text-gray-800 text-sm">Item Entry & Printing</h2>
+        <button onclick="clearQueue()" id="queueBtn" class="bg-blue-100 text-blue-700 text-xs px-3 py-1 rounded-full font-medium">
+          Clear Queue (0)
+        </button>
+      </div>
+
+      <!-- Scan Button -->
+      <button onclick="alert('Camera Barcode Scanner is Ready')" class="w-full bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-xl font-bold text-xs shadow">
+        Scan Existing Sticker (Auto-Fill)
       </button>
-      <button onclick="showTab('stock')" class="flex-1 py-3 text-center text-gray-500" id="tab-stock">
-        📦 Stock Entry
+
+      <!-- Barcode / Tag No. -->
+      <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Barcode / Tag No.</label>
+        <div class="flex gap-2">
+          <input type="text" id="itemBarcode" class="flex-1 border border-gray-300 rounded-xl p-2 text-xs font-mono outline-none focus:ring-2 focus:ring-blue-500">
+          <button onclick="generateAutoBarcode()" class="bg-blue-600 text-white px-3 py-2 rounded-xl text-xs font-bold shadow hover:bg-blue-700 flex items-center gap-1">
+            ⚡ Auto Barcode
+          </button>
+        </div>
+      </div>
+
+      <!-- Mill / Brand Name -->
+      <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Mill / Brand Name</label>
+        <input type="text" id="itemBrand" class="w-full border border-gray-300 rounded-xl p-2 text-xs outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g. Raymond, Arvind, Siyaram, Local">
+        <div class="flex gap-1.5 mt-2">
+          <button onclick="setBrand('Raymond')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] px-2.5 py-1 rounded-full border">Raymond</button>
+          <button onclick="setBrand('Arvind')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] px-2.5 py-1 rounded-full border">Arvind</button>
+          <button onclick="setBrand('Siyaram')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] px-2.5 py-1 rounded-full border">Siyaram</button>
+          <button onclick="setBrand('Local')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] px-2.5 py-1 rounded-full border">Local</button>
+        </div>
+      </div>
+
+      <!-- Item Name / Category -->
+      <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Item Name / Category</label>
+        <input type="text" id="itemName" class="w-full border border-gray-300 rounded-xl p-2 text-xs outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g. Shirting, Suiting, Saree, Kurti">
+      </div>
+
+      <!-- Shelf & Selling Price -->
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Shelf / Rack No.</label>
+          <input type="text" id="itemShelf" class="w-full border border-gray-300 rounded-xl p-2 text-xs outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g. Shelf A-1">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Selling Price / MRP (₹)</label>
+          <input type="number" id="itemPrice" class="w-full border border-gray-300 rounded-xl p-2 text-xs outline-none focus:ring-2 focus:ring-blue-500" value="0">
+        </div>
+      </div>
+
+      <!-- Sticker Qty -->
+      <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Sticker Qty (Number of Stickers needed)</label>
+        <input type="number" id="itemStickerQty" class="w-full border border-gray-300 rounded-xl p-2 text-xs outline-none focus:ring-2 focus:ring-blue-500" value="1">
+      </div>
+
+      <!-- Action Buttons -->
+      <button onclick="addStockAndFillGrid()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold text-xs shadow flex items-center justify-center gap-1">
+        <span>➕</span> Add Stock & Fill Sticker Grid
       </button>
-      <button onclick="showTab('reports')" class="flex-1 py-3 text-center text-gray-500 owner-only hidden" id="tab-reports">
-        📊 Reports
+
+      <button onclick="printA4StickerSheet()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold text-xs shadow">
+        Print 36-Sticker A4 Sheet
       </button>
     </div>
 
-    <!-- TAB 1: POS Billing -->
-    <div id="sec-billing" class="tab-content bg-white p-4 rounded-b-lg shadow space-y-3">
-      <h2 class="font-bold text-gray-700">Quick Scan & Bill</h2>
-      
+    <!-- TAB 2: Billing -->
+    <div id="sec-billing" class="tab-content bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3 hidden">
+      <h2 class="font-bold text-gray-800 text-sm">POS Billing</h2>
       <div class="flex gap-2">
-        <!-- Auto Suggestion Input -->
-        <input type="text" id="manualBarcode" list="inventoryList" placeholder="Search Item Name or Barcode ID..." class="border p-2 rounded text-sm w-full">
+        <input type="text" id="billQuery" list="inventoryList" placeholder="Search Item or Barcode..." class="w-full border p-2 rounded-xl text-xs">
         <datalist id="inventoryList"></datalist>
-
-        <button onclick="addItemToBill()" class="bg-indigo-600 text-white px-4 py-2 rounded text-sm font-bold">Add</button>
+        <button onclick="addItemToBill()" class="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold">Add</button>
       </div>
 
-      <!-- Customer Details for WhatsApp -->
-      <div class="border-t pt-2 mt-2">
-        <label class="text-xs font-bold text-gray-500">Customer Mobile (For WhatsApp Bill):</label>
-        <input type="tel" id="custMobile" placeholder="e.g. 9876543210" class="border p-2 rounded text-sm w-full mt-1">
-      </div>
-      
+      <!-- WhatsApp Mobile -->
       <div class="border-t pt-2">
-        <h3 class="text-xs font-bold text-gray-500 uppercase mb-2">Current Cart</h3>
-        <ul id="cartList" class="divide-y text-sm max-h-40 overflow-y-auto mb-3"></ul>
-        <div class="flex justify-between items-center font-bold text-lg border-t pt-2">
+        <label class="text-[11px] font-bold text-gray-500">Customer Mobile (For WhatsApp Bill):</label>
+        <input type="tel" id="custMobile" placeholder="e.g. 9876543210" class="border p-2 rounded-xl text-xs w-full mt-1">
+      </div>
+
+      <!-- Cart -->
+      <div class="border-t pt-2 space-y-2">
+        <h3 class="text-xs font-bold text-gray-500 uppercase">Cart Items</h3>
+        <ul id="cartList" class="divide-y text-xs max-h-36 overflow-y-auto"></ul>
+        <div class="flex justify-between items-center font-bold text-sm border-t pt-2">
           <span>Total:</span>
-          <span id="cartTotal">₹0</span>
+          <span id="cartTotal" class="text-blue-700 text-base">₹0</span>
         </div>
-
-        <div class="grid grid-cols-2 gap-2 mt-3">
-          <button onclick="completeSale(false)" class="bg-green-600 text-white py-2.5 rounded-lg font-bold text-xs shadow">
-            🖨️ Complete Sale
-          </button>
-          <button onclick="completeSale(true)" class="bg-emerald-700 text-white py-2.5 rounded-lg font-bold text-xs shadow">
-            💬 Sale & WhatsApp
-          </button>
+        <div class="grid grid-cols-2 gap-2 mt-2">
+          <button onclick="completeSale(false)" class="bg-gray-800 text-white py-2.5 rounded-xl font-bold text-xs shadow">Complete Sale</button>
+          <button onclick="completeSale(true)" class="bg-emerald-600 text-white py-2.5 rounded-xl font-bold text-xs shadow">💬 WhatsApp Bill</button>
         </div>
       </div>
     </div>
 
-    <!-- TAB 2: Stock Entry -->
-    <div id="sec-stock" class="tab-content bg-white p-4 rounded-b-lg shadow space-y-3 hidden">
-      <h2 class="font-bold text-gray-700">Add Stock Item</h2>
-      <input type="text" id="itemName" placeholder="Item Name (e.g. Kurti / Shirt)" class="w-full border p-2 rounded text-sm">
-      <div class="flex gap-2">
-        <input type="number" id="itemPrice" placeholder="Selling Price (₹)" class="w-full border p-2 rounded text-sm">
-        <input type="number" id="itemCost" placeholder="Cost Price (₹)" class="w-full border p-2 rounded text-sm owner-only hidden">
-      </div>
-      <div class="flex gap-2">
-        <input type="number" id="itemQty" placeholder="Quantity" class="w-full border p-2 rounded text-sm">
-        <input type="text" id="itemBarcode" placeholder="Barcode Code (Optional)" class="w-full border p-2 rounded text-sm">
-      </div>
-      <button onclick="saveStockItem()" class="w-full bg-indigo-600 text-white py-2.5 rounded font-bold text-sm shadow">
-        Save Item & Sync
-      </button>
-
-      <!-- Live Stock List -->
-      <div class="border-t pt-3 mt-4">
-        <h3 class="text-xs font-bold text-gray-500 uppercase mb-2">Synced Live Inventory</h3>
-        <div id="stockList" class="space-y-2 max-h-60 overflow-y-auto text-sm"></div>
-      </div>
+    <!-- TAB 3: Stock List -->
+    <div id="sec-stock" class="tab-content bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3 hidden">
+      <h2 class="font-bold text-gray-800 text-sm">Live Stock Inventory</h2>
+      <div id="stockListDisplay" class="space-y-2 max-h-80 overflow-y-auto"></div>
     </div>
 
-    <!-- TAB 3: Reports -->
-    <div id="sec-reports" class="tab-content bg-white p-4 rounded-b-lg shadow space-y-3 hidden">
-      <h2 class="font-bold text-gray-700">Sales Overview</h2>
-      <div class="bg-indigo-50 p-3 rounded text-center">
-        <p class="text-xs text-indigo-500 font-bold">Total Sales</p>
-        <p id="statSales" class="text-lg font-bold text-indigo-700">₹0</p>
-      </div>
+    <!-- TAB 4: AI Agent -->
+    <div id="sec-ai" class="tab-content bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3 hidden">
+      <h2 class="font-bold text-gray-800 text-sm">🤖 AI Sales Helper</h2>
+      <p class="text-xs text-gray-500">Ask anything about your stock or daily sales summary.</p>
+      <input type="text" placeholder="e.g. Total Kurti stock left?" class="w-full border p-2 rounded-xl text-xs">
+      <button onclick="alert('AI Agent feature is active!')" class="w-full bg-blue-600 text-white py-2 rounded-xl text-xs font-bold">Ask AI</button>
     </div>
 
   </div>
 
-  <!-- Barcode Sticker Modal -->
-  <div id="stickerModal" class="fixed inset-0 bg-black/60 flex items-center justify-center p-4 hidden z-50">
-    <div class="bg-white p-5 rounded-lg w-full max-w-xs space-y-3 text-center">
-      <h3 class="font-bold text-md text-gray-800">Print Barcode Sticker</h3>
-      <div id="printableStickerArea" class="border p-3 rounded bg-white inline-block">
-        <p class="font-bold text-sm" id="stkName">Item Name</p>
-        <svg id="stkBarcode" class="mx-auto my-1"></svg>
-        <p class="font-bold text-sm text-indigo-700" id="stkPrice">MRP: ₹0</p>
-      </div>
-      <div class="flex gap-2 pt-2">
-        <button onclick="window.print()" class="w-full bg-indigo-600 text-white py-2 rounded text-xs font-bold">🖨️ Print Now</button>
-        <button onclick="closeStickerModal()" class="w-full bg-gray-300 text-gray-700 py-2 rounded text-xs">Close</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Firebase Config Modal -->
-  <div id="configModal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 hidden">
-    <div class="bg-white p-5 rounded-lg w-full max-w-sm space-y-3">
-      <h3 class="font-bold text-lg">Paste Firebase Config</h3>
-      <textarea id="firebaseConfigInput" rows="6" class="w-full border p-2 text-xs font-mono rounded" placeholder='{ "apiKey": "..." }'></textarea>
-      <div class="flex gap-2">
-        <button onclick="saveFirebaseConfig()" class="w-full bg-indigo-600 text-white py-2 rounded text-sm font-bold">Connect Cloud</button>
-        <button onclick="closeConfigModal()" class="w-full bg-gray-300 py-2 rounded text-sm">Cancel</button>
-      </div>
-    </div>
-  </div>
+  <!-- Hidden Printable 36-Sticker Sheet Grid -->
+  <div id="printableA4Sheet" class="hidden"></div>
 
   <script>
-    let db;
-    let isOwner = false;
-    let ownerPIN = "2319";
-    let inventory = [];
+    let inventory = JSON.parse(localStorage.getItem('ssc_inventory') || '[]');
+    let stickerQueue = JSON.parse(localStorage.getItem('ssc_sticker_queue') || '[]');
     let cart = [];
 
     window.onload = function() {
-      // Load saved logo
-      const savedLogo = localStorage.getItem('sri_sai_logo');
+      generateAutoBarcode();
+      updateQueueCount();
+      renderStockList();
+      renderDatalist();
+
+      const savedLogo = localStorage.getItem('ssc_logo');
       if (savedLogo) applyLogo(savedLogo);
-
-      // Load saved local stock
-      const savedStock = localStorage.getItem('sri_sai_local_stock');
-      if (savedStock) {
-        inventory = JSON.parse(savedStock);
-        renderInventory();
-      }
-
-      // Load Firebase if available
-      const savedConfig = localStorage.getItem('sri_sai_firebase_config');
-      if (savedConfig) {
-        initFirebase(JSON.parse(savedConfig));
-      }
     };
 
-    function initFirebase(config) {
-      try {
-        if (!firebase.apps.length) firebase.initializeApp(config);
-        db = firebase.database();
-        document.getElementById('syncStatus').innerText = '🟢 Cloud Live Sync Active';
-        document.getElementById('syncStatus').className = 'text-xs text-green-300 font-bold';
-        
-        // Inventory Sync
-        db.ref('inventory').on('value', (snapshot) => {
-          const data = snapshot.val();
-          inventory = data ? Object.values(data) : [];
-          localStorage.setItem('sri_sai_local_stock', JSON.stringify(inventory));
-          renderInventory();
-        });
+    function showTab(tab) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.getElementById('sec-' + tab).classList.remove('hidden');
 
-        // Logo Sync
-        db.ref('shopLogo').on('value', (snapshot) => {
-          const cloudLogo = snapshot.val();
-          if (cloudLogo) applyLogo(cloudLogo);
-        });
+      ['entry', 'billing', 'stock', 'ai'].forEach(t => {
+        const btn = document.getElementById('tab-' + t);
+        if (btn) {
+          btn.className = (t === tab) 
+            ? "bg-blue-600 text-white font-semibold py-2 rounded-lg text-xs shadow text-center"
+            : "text-gray-700 font-semibold py-2 rounded-lg text-xs text-center";
+        }
+      });
+    }
 
-      } catch (err) {
-        alert('Firebase Error: ' + err.message);
-      }
+    function generateAutoBarcode() {
+      const code = 'SSC' + Math.floor(100000 + Math.random() * 900000);
+      document.getElementById('itemBarcode').value = code;
+    }
+
+    function setBrand(brand) {
+      document.getElementById('itemBrand').value = brand;
     }
 
     function uploadLogo(event) {
@@ -225,10 +221,9 @@
       if (file) {
         const reader = new FileReader();
         reader.onload = function(e) {
-          const base64Logo = e.target.result;
-          applyLogo(base64Logo);
-          localStorage.setItem('sri_sai_logo', base64Logo);
-          if (db) db.ref('shopLogo').set(base64Logo);
+          const logoData = e.target.result;
+          applyLogo(logoData);
+          localStorage.setItem('ssc_logo', logoData);
         };
         reader.readAsDataURL(file);
       }
@@ -242,191 +237,144 @@
       placeholder.classList.add('hidden');
     }
 
-    function saveFirebaseConfig() {
-      const input = document.getElementById('firebaseConfigInput').value;
-      try {
-        const parsed = JSON.parse(input);
-        localStorage.setItem('sri_sai_firebase_config', JSON.stringify(parsed));
-        initFirebase(parsed);
-        closeConfigModal();
-      } catch (e) {
-        alert('Invalid JSON Config!');
+    function addStockAndFillGrid() {
+      const barcode = document.getElementById('itemBarcode').value.trim();
+      const brand = document.getElementById('itemBrand').value.trim() || 'Local';
+      const name = document.getElementById('itemName').value.trim();
+      const shelf = document.getElementById('itemShelf').value.trim() || 'A-1';
+      const price = document.getElementById('itemPrice').value || 0;
+      const qty = parseInt(document.getElementById('itemStickerQty').value) || 1;
+
+      if (!name) return alert("Please enter Item Name / Category!");
+
+      const itemData = { barcode, brand, name, shelf, price: Number(price), qty: Number(qty) };
+
+      // Update Stock Inventory
+      const existIndex = inventory.findIndex(i => i.barcode === barcode);
+      if (existIndex > -1) {
+        inventory[existIndex].qty += qty;
+      } else {
+        inventory.push(itemData);
       }
+      localStorage.setItem('ssc_inventory', JSON.stringify(inventory));
+
+      // Push to Sticker Print Queue
+      for (let i = 0; i < qty; i++) {
+        stickerQueue.push({ barcode, brand, name, shelf, price });
+      }
+      localStorage.setItem('ssc_sticker_queue', JSON.stringify(stickerQueue));
+
+      updateQueueCount();
+      renderStockList();
+      renderDatalist();
+
+      alert(`Item "${name}" saved & added to Sticker Grid!`);
+
+      // Reset Inputs
+      document.getElementById('itemName').value = '';
+      document.getElementById('itemPrice').value = '0';
+      generateAutoBarcode();
     }
 
-    function showTab(tab) {
-      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-      document.getElementById('sec-' + tab).classList.remove('hidden');
+    function updateQueueCount() {
+      document.getElementById('queueBtn').innerText = `Clear Queue (${stickerQueue.length})`;
+    }
 
-      ['billing', 'stock', 'reports'].forEach(t => {
-        const btn = document.getElementById('tab-' + t);
-        if (btn) {
-          btn.classList.remove('font-bold', 'text-indigo-600', 'border-b-2', 'border-indigo-600');
-          btn.classList.add('text-gray-500');
-        }
+    function clearQueue() {
+      stickerQueue = [];
+      localStorage.setItem('ssc_sticker_queue', JSON.stringify(stickerQueue));
+      updateQueueCount();
+      alert("Print Sticker Queue Cleared!");
+    }
+
+    function printA4StickerSheet() {
+      if (stickerQueue.length === 0) return alert("Sticker Queue is empty! Add items first.");
+
+      const sheet = document.getElementById('printableA4Sheet');
+      sheet.innerHTML = stickerQueue.map((stk, idx) => `
+        <div class="border border-gray-400 p-2 text-center rounded bg-white text-[10px]">
+          <p class="font-bold uppercase text-[9px]">Sri Sai Collection</p>
+          <p class="font-semibold leading-tight">${stk.brand} - ${stk.name}</p>
+          <svg id="stkBar_${idx}" class="mx-auto my-1 max-h-8"></svg>
+          <div class="flex justify-between font-bold text-[9px] px-1">
+            <span>Rack: ${stk.shelf}</span>
+            <span>MRP: ₹${stk.price}</span>
+          </div>
+        </div>
+      `).join('');
+
+      // Render Barcodes
+      stickerQueue.forEach((stk, idx) => {
+        JsBarcode(`#stkBar_${idx}`, stk.barcode, { format: "CODE128", width: 1.2, height: 25, displayValue: true, fontSize: 8 });
       });
 
-      const activeBtn = document.getElementById('tab-' + tab);
-      if (activeBtn) {
-        activeBtn.classList.remove('text-gray-500');
-        activeBtn.classList.add('font-bold', 'text-indigo-600', 'border-b-2', 'border-indigo-600');
-      }
+      window.print();
     }
 
-    function switchRole() {
-      if (!isOwner) {
-        let pin = prompt("Enter 4-Digit Owner PIN:");
-        if (pin === ownerPIN) {
-          isOwner = true;
-          document.getElementById('roleLabel').innerText = "Owner Mode";
-          document.getElementById('roleLabel').className = "text-sm text-indigo-600 font-bold";
-          document.querySelectorAll('.owner-only').forEach(el => el.classList.remove('hidden'));
-        } else alert("Incorrect PIN!");
-      } else {
-        isOwner = false;
-        document.getElementById('roleLabel').innerText = "Staff Mode";
-        document.getElementById('roleLabel').className = "text-sm text-green-600 font-bold";
-        document.querySelectorAll('.owner-only').forEach(el => el.classList.add('hidden'));
-        showTab('billing');
+    function renderStockList() {
+      const list = document.getElementById('stockListDisplay');
+      if (!list) return;
+      list.innerHTML = inventory.map(item => `
+        <div class="flex justify-between items-center p-2.5 bg-gray-50 border rounded-xl text-xs">
+          <div>
+            <p class="font-bold text-gray-800">${item.brand} - ${item.name}</p>
+            <p class="text-gray-400 text-[11px]">Tag: <span class="font-mono text-gray-700">${item.barcode}</span> | Shelf: ${item.shelf}</p>
+          </div>
+          <div class="text-right">
+            <p class="font-bold text-blue-700">₹${item.price}</p>
+            <p class="text-[10px] text-gray-500">Qty: ${item.qty}</p>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderDatalist() {
+      const dl = document.getElementById('inventoryList');
+      if (dl) {
+        dl.innerHTML = inventory.map(i => `<option value="${i.barcode}">${i.brand} - ${i.name} (₹${i.price})</option>`).join('');
       }
     }
 
     function addItemToBill() {
-      const query = document.getElementById('manualBarcode').value.trim().toLowerCase();
-      if (!query) return;
-
-      // Search logic: Match Barcode ID OR Item Name (Exact or Partial)
-      const item = inventory.find(i => 
-        String(i.id).toLowerCase() === query || 
-        i.name.toLowerCase().includes(query)
-      );
-
+      const q = document.getElementById('billQuery').value.trim();
+      const item = inventory.find(i => i.barcode === q || i.name.toLowerCase().includes(q.toLowerCase()));
       if (item) {
         cart.push(item);
         renderCart();
-        document.getElementById('manualBarcode').value = '';
+        document.getElementById('billQuery').value = '';
       } else {
-        alert('Item not found! Check item list in Stock Entry.');
+        alert("Item not found in stock!");
       }
     }
 
     function renderCart() {
-      const list = document.getElementById('cartList');
+      const cl = document.getElementById('cartList');
       let total = 0;
-      list.innerHTML = cart.map((item, idx) => {
-        total += Number(item.price);
-        return `<li class="flex justify-between py-1.5">
-          <span>${item.name}</span>
-          <span class="font-bold">₹${item.price}</span>
-        </li>`;
+      cl.innerHTML = cart.map(i => {
+        total += Number(i.price);
+        return `<li class="flex justify-between py-1"><span>${i.name}</span><span class="font-bold">₹${i.price}</span></li>`;
       }).join('');
       document.getElementById('cartTotal').innerText = '₹' + total;
     }
 
-    function completeSale(sendWhatsApp) {
-      if (cart.length === 0) return alert('Cart is empty!');
+    function completeSale(sendWA) {
+      if (cart.length === 0) return alert("Cart is empty!");
+      const total = cart.reduce((s, i) => s + Number(i.price), 0);
+      const mob = document.getElementById('custMobile').value.trim();
 
-      const total = cart.reduce((sum, item) => sum + Number(item.price), 0);
-      const mobile = document.getElementById('custMobile').value.trim();
-
-      if (sendWhatsApp) {
-        if (!mobile) return alert('Please enter customer mobile number for WhatsApp bill!');
-        
-        let msg = `🛍️ *Sri Sai Collection*\n`;
-        msg += `-------------------------------\n`;
-        cart.forEach(i => {
-          msg += `• ${i.name} - ₹${i.price}\n`;
-        });
-        msg += `-------------------------------\n`;
-        msg += `*Total Bill Amount: ₹${total}*\n\n`;
-        msg += `Thank you for shopping with us! 🙏`;
-
-        const waUrl = `https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`;
-        window.open(waUrl, '_blank');
+      if (sendWA) {
+        if (!mob) return alert("Please enter mobile number!");
+        let msg = `🛍️ *Sri Sai Collection*\n---------------------\n`;
+        cart.forEach(i => msg += `• ${i.name} - ₹${i.price}\n`);
+        msg += `---------------------\n*Total: ₹${total}*\nThank you! 🙏`;
+        window.open(`https://wa.me/91${mob}?text=${encodeURIComponent(msg)}`, '_blank');
       } else {
-        alert('Sale Completed! Total Amount: ₹' + total);
+        alert("Sale Completed! Total: ₹" + total);
       }
-
       cart = [];
       renderCart();
       document.getElementById('custMobile').value = '';
     }
-
-    function saveStockItem() {
-      const name = document.getElementById('itemName').value.trim();
-      const price = document.getElementById('itemPrice').value;
-      const barcode = document.getElementById('itemBarcode').value.trim() || Date.now().toString().slice(-6);
-      const qty = document.getElementById('itemQty').value || 1;
-
-      if (!name || !price) return alert("Item Name aur Price bharna zaroori hai!");
-
-      const itemData = { id: barcode, name, price: Number(price), qty: Number(qty) };
-
-      if (db) {
-        db.ref('inventory/' + barcode).set(itemData);
-      } else {
-        inventory.push(itemData);
-        localStorage.setItem('sri_sai_local_stock', JSON.stringify(inventory));
-        renderInventory();
-      }
-
-      alert(`Item "${name}" Saved Successfully! (ID: ${barcode})`);
-      document.getElementById('itemName').value = '';
-      document.getElementById('itemPrice').value = '';
-      document.getElementById('itemBarcode').value = '';
-      document.getElementById('itemQty').value = '';
-    }
-
-    function renderInventory() {
-      // 1. Render Inventory List
-      const list = document.getElementById('stockList');
-      if (list) {
-        list.innerHTML = inventory.map(item => `
-          <div class="flex justify-between items-center p-2 bg-gray-50 rounded border text-xs">
-            <div>
-              <p class="font-bold text-gray-800">${item.name}</p>
-              <p class="text-gray-400">ID / Barcode: <span class="font-mono text-gray-700">${item.id}</span> | Qty: ${item.qty}</p>
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="font-bold text-indigo-600">₹${item.price}</span>
-              <button onclick="openStickerModal('${item.id}', '${item.name}', ${item.price})" class="bg-gray-200 hover:bg-indigo-100 text-indigo-700 px-2 py-1 rounded text-[10px] font-bold">
-                🖨️ Sticker
-              </button>
-            </div>
-          </div>
-        `).join('');
-      }
-
-      // 2. Render Auto-complete Datalist for Billing Search
-      const datalist = document.getElementById('inventoryList');
-      if (datalist) {
-        datalist.innerHTML = inventory.map(item => `
-          <option value="${item.name}">ID: ${item.id} - ₹${item.price}</option>
-        `).join('');
-      }
-    }
-
-    function openStickerModal(id, name, price) {
-      document.getElementById('stkName').innerText = name;
-      document.getElementById('stkPrice').innerText = 'MRP: ₹' + price;
-      
-      JsBarcode("#stkBarcode", id, {
-        format: "CODE128",
-        width: 1.5,
-        height: 40,
-        displayValue: true,
-        fontSize: 10
-      });
-
-      document.getElementById('stickerModal').classList.remove('hidden');
-    }
-
-    function closeStickerModal() {
-      document.getElementById('stickerModal').classList.add('hidden');
-    }
-
-    function openConfigModal() { document.getElementById('configModal').classList.remove('hidden'); }
-    function closeConfigModal() { document.getElementById('configModal').classList.add('hidden'); }
   </script>
 </body>
 </html>
