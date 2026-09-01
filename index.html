@@ -282,14 +282,12 @@
       auth.signOut();
     }
 
-    // Logo Upload Handling & Realtime Sync
     function uploadLogo(event) {
       const file = event.target.files[0];
       if (!file) return;
       const reader = new FileReader();
       reader.onload = function(e) {
-        const base64Data = e.target.result;
-        db.ref('ssc_shop_logo').set(base64Data);
+        db.ref('ssc_shop_logo').set(e.target.result);
       };
       reader.readAsDataURL(file);
     }
@@ -331,20 +329,17 @@
     function initRealtimeData() {
       generateAutoBarcode();
 
-      // Inventory Listener
       db.ref('ssc_inventory').on('value', (snapshot) => {
         inventory = snapshot.val() ? Object.values(snapshot.val()) : [];
         renderStockList();
         renderDatalist();
       });
 
-      // Sales Listener
       db.ref('ssc_sales').on('value', (snapshot) => {
         salesHistory = snapshot.val() ? Object.values(snapshot.val()) : [];
         updateSalesOverview();
       });
 
-      // Logo Listener
       db.ref('ssc_shop_logo').on('value', (snapshot) => {
         const logoUrl = snapshot.val();
         const logoImg = document.getElementById('headerLogo');
@@ -360,7 +355,6 @@
       });
     }
 
-    // Auto-fill Item details when barcode is typed or scanned in Entry Tab
     document.getElementById('itemBarcode').addEventListener('input', function() {
       const code = this.value.trim();
       const found = inventory.find(i => i.barcode === code);
@@ -410,7 +404,21 @@
     }
 
     function printA4StickerSheet() {
-      if (stickerQueue.length === 0) return alert("Queue is empty!");
+      // Auto-add current form inputs to queue if queue is empty
+      if (stickerQueue.length === 0) {
+        const barcode = document.getElementById('itemBarcode').value.trim();
+        const brand = document.getElementById('itemBrand').value.trim() || 'ND';
+        const name = document.getElementById('itemName').value.trim();
+        const shelf = document.getElementById('itemShelf').value.trim() || 'A-1';
+        const price = Number(document.getElementById('itemPrice').value) || 0;
+        const qty = Number(document.getElementById('itemStickerQty').value) || 1;
+
+        if (!name) return alert("Pehle Item Name daalein!");
+
+        for (let i = 0; i < qty; i++) {
+          stickerQueue.push({ barcode, brand, name, shelf, price });
+        }
+      }
 
       const sheet = document.getElementById('printableA4Sheet');
       const printItems = stickerQueue.slice(0, 36);
