@@ -206,12 +206,10 @@
         </div>
       </div>
 
-      <!-- Action Button to Trigger AI Engine -->
       <button onclick="generateAISaleReport()" class="w-full bg-gradient-to-r from-blue-700 to-indigo-800 hover:from-blue-800 hover:to-indigo-900 text-white py-3 rounded-xl font-bold text-xs shadow flex items-center justify-center gap-2">
         <span>🤖</span> Generate AI Sales & Restock Report
       </button>
 
-      <!-- AI Analysis Output Box -->
       <div id="aiReportBox" class="bg-slate-900 text-white p-3.5 rounded-xl space-y-3 text-xs hidden">
         <div class="flex items-center justify-between border-b border-slate-700 pb-2">
           <span class="font-bold text-amber-400 flex items-center gap-1">⚡ AI Inventory Advisor</span>
@@ -239,7 +237,7 @@
     <div class="bg-white p-5 rounded-2xl w-full max-w-xs space-y-3 shadow-xl text-center">
       <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto text-xl font-bold">🔒</div>
       <h3 class="font-bold text-base text-gray-800">Owner PIN Required</h3>
-      <p class="text-xs text-gray-500">Kripya 4-digit Owner PIN daalein (Default PIN: 1234)</p>
+      <p class="text-xs text-gray-500">Kripya 4-digit Owner PIN daalein (Default PIN: 2319)</p>
       <input type="password" id="pinInput" maxlength="6" placeholder="••••" class="w-full border p-3 text-center font-bold text-lg rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500 tracking-widest">
       <div class="flex gap-2 pt-1">
         <button onclick="submitPin()" class="w-full bg-blue-600 text-white py-2.5 rounded-xl text-xs font-bold shadow">Unlock</button>
@@ -288,8 +286,8 @@
       }
     };
 
-    // --- OWNER PIN SYSTEM ---
-    function getOwnerPin() { return localStorage.getItem('ssc_owner_pin') || '2319'; }
+    // --- OWNER PIN SYSTEM (FIXED EXECUTION BUG) ---
+    function getOwnerPin() { return localStorage.getItem('ssc_owner_pin') || '1234'; }
 
     function protectedAction(callback) {
       pendingCallback = callback;
@@ -300,14 +298,16 @@
 
     function closePinModal() {
       document.getElementById('pinModal').classList.add('hidden');
-      pendingCallback = null;
+      document.getElementById('pinInput').value = '';
     }
 
     function submitPin() {
       const entered = document.getElementById('pinInput').value.trim();
       if (entered === getOwnerPin()) {
+        const actionToRun = pendingCallback;
+        pendingCallback = null;
         closePinModal();
-        if (pendingCallback) pendingCallback();
+        if (actionToRun) actionToRun();
       } else {
         alert("❌ Galat Owner PIN!");
       }
@@ -339,21 +339,17 @@
 
         db.ref('ssc_inventory').on('value', (snapshot) => {
           const data = snapshot.val();
-          if (data) {
-            inventory = Object.values(data);
-            localStorage.setItem('ssc_inventory', JSON.stringify(inventory));
-            renderStockList();
-            renderDatalist();
-          }
+          inventory = data ? Object.values(data) : [];
+          localStorage.setItem('ssc_inventory', JSON.stringify(inventory));
+          renderStockList();
+          renderDatalist();
         });
 
         db.ref('ssc_sales').on('value', (snapshot) => {
           const data = snapshot.val();
-          if (data) {
-            salesHistory = Object.values(data);
-            localStorage.setItem('ssc_sales', JSON.stringify(salesHistory));
-            updateSalesOverview();
-          }
+          salesHistory = data ? Object.values(data) : [];
+          localStorage.setItem('ssc_sales', JSON.stringify(salesHistory));
+          updateSalesOverview();
         });
 
         db.ref('ssc_logo').on('value', (snapshot) => {
@@ -568,7 +564,6 @@
       document.getElementById('cartTotal').innerText = '₹' + total;
     }
 
-    // --- SALES RECORDING SYSTEM ---
     function completeSale(sendWA) {
       if (cart.length === 0) return alert("Cart is empty!");
       const total = cart.reduce((s, i) => s + Number(i.price), 0);
@@ -586,7 +581,6 @@
         };
         salesHistory.push(saleItem);
 
-        // Deduct inventory quantity
         const stockItem = inventory.find(i => i.barcode === item.barcode);
         if (stockItem && stockItem.qty > 0) stockItem.qty -= 1;
       });
@@ -616,7 +610,6 @@
       document.getElementById('custMobile').value = '';
     }
 
-    // --- SALES INSIGHTS & AI ENGINE ---
     function updateSalesOverview() {
       const todayStr = new Date().toDateString();
       const currentMonth = new Date().getMonth();
@@ -660,15 +653,12 @@
         }
       });
 
-      // Sort items by sold count
       const sortedItems = Object.keys(itemSalesMap).sort((a,b) => itemSalesMap[b].count - itemSalesMap[a].count);
 
-      // 1. Top Selling
       const topSellingHTML = sortedItems.slice(0, 4).map(key => 
         `<li><span class="font-bold text-white">${key}</span>: ${itemSalesMap[key].count} units (₹${itemSalesMap[key].revenue})</li>`
       ).join('');
 
-      // 2. Restock Recommendations
       const restockHTML = sortedItems.map(key => {
         const soldQty = itemSalesMap[key].count;
         const currentInv = inventory.find(i => (i.brand + ' ' + i.name).trim() === key);
