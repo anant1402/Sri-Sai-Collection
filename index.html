@@ -17,9 +17,17 @@
       body * { visibility: hidden; }
       #printableA4Sheet, #printableA4Sheet * { visibility: visible; }
       #printableA4Sheet {
-        position: absolute; left: 0; top: 0; width: 100%; height: 100%;
-        display: grid !important; grid-template-columns: repeat(4, 1fr) !important;
-        grid-template-rows: repeat(9, 1fr) !important; gap: 0px !important;
+        position: absolute; left: 0; top: 0; width: 100%;
+      }
+      .a4-page {
+        width: 100%;
+        height: 285mm;
+        display: grid !important;
+        grid-template-columns: repeat(4, 1fr) !important;
+        grid-template-rows: repeat(9, 1fr) !important;
+        gap: 0px !important;
+        page-break-after: always;
+        break-after: page;
       }
       .sticker-box {
         border: 1px solid #000 !important; box-sizing: border-box; padding: 2px;
@@ -131,7 +139,7 @@
       </div>
 
       <button onclick="addStockAndFillGrid()" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold text-xs shadow">➕ Add Stock & Queue</button>
-      <button onclick="printA4StickerSheet()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-xs shadow">🖨️ Print 36-Sticker Sheet</button>
+      <button onclick="printA4StickerSheet()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-xs shadow">🖨️ Print Multi-Page Stickers</button>
     </div>
 
     <!-- TAB 2: Billing -->
@@ -195,7 +203,7 @@
 
   </div>
 
-  <!-- Printable Sheet -->
+  <!-- Printable Sheet Container -->
   <div id="printableA4Sheet" class="hidden"></div>
 
   <script>
@@ -421,20 +429,38 @@
       }
 
       const sheet = document.getElementById('printableA4Sheet');
-      const printItems = stickerQueue.slice(0, 36);
+      sheet.innerHTML = '';
 
-      sheet.innerHTML = printItems.map((stk, idx) => `
-        <div class="sticker-box">
-          <div style="width: 100%; height: 50%; display: flex; align-items: center; justify-content: center;">
-            <svg id="stkBar_${idx}" style="width: 100%; height: 100%;"></svg>
-          </div>
-          <div style="font-weight: 900; font-size: 12px;">${(stk.brand + ' ' + stk.name).substring(0, 15)}</div>
-          <div style="font-weight: 900; font-size: 14px;">₹${stk.price}</div>
-        </div>
-      `).join('');
+      // Chunk items into pages of 36 stickers each
+      const pageSize = 36;
+      let globalIndex = 0;
 
-      printItems.forEach((stk, idx) => {
-        JsBarcode(`#stkBar_${idx}`, stk.barcode, { format: "CODE128", width: 1.8, height: 38, displayValue: false, margin: 0 });
+      for (let i = 0; i < stickerQueue.length; i += pageSize) {
+        const pageItems = stickerQueue.slice(i, i + pageSize);
+        const pageDiv = document.createElement('div');
+        pageDiv.className = 'a4-page';
+
+        pageDiv.innerHTML = pageItems.map((stk) => {
+          const currentIndex = globalIndex++;
+          return `
+            <div class="sticker-box">
+              <div style="width: 100%; height: 50%; display: flex; align-items: center; justify-content: center;">
+                <svg id="stkBar_${currentIndex}" style="width: 100%; height: 100%;"></svg>
+              </div>
+              <div style="font-weight: 900; font-size: 11px;">${(stk.brand + ' ' + stk.name).substring(0, 15)}</div>
+              <div style="font-weight: 900; font-size: 13px;">₹${stk.price}</div>
+            </div>
+          `;
+        }).join('');
+
+        sheet.appendChild(pageDiv);
+      }
+
+      // Generate Barcodes for all rendered elements across all pages
+      stickerQueue.forEach((stk, idx) => {
+        try {
+          JsBarcode(`#stkBar_${idx}`, stk.barcode, { format: "CODE128", width: 1.8, height: 38, displayValue: false, margin: 0 });
+        } catch(e) {}
       });
 
       window.print();
